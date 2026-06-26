@@ -20,3 +20,69 @@ AI 작업 인수인계용 진행 기록 / To-Do Done
   검증: npm run build 성공(Turbopack 컴파일 OK, TypeScript 통과, 정적 페이지 4개 생성).
   비고(미해결): sharp / unrs-resolver install 스크립트 미승인(npm allow-scripts), npm audit moderate 2건. 추후 검토.
 
+------------------------------------------------------------
+
+[완료] 1. 디자인 시스템 토대 (색상 토큰·글래스모피즘·레이아웃 셸)  (2026-06-26 15:15:30)
+  어디: src/app/globals.css, src/app/layout.tsx, src/app/page.tsx, src/components/ui/glass-card.tsx, src/components/dashboard/greeting.tsx
+  무엇/어떻게:
+   · Rule_UIUX 4색군(바탕/글자·선/핵심 액션 파랑/상태) CSS 토큰 정의(@theme inline + 다크·라이트 prefers-color-scheme).
+   · 글래스모피즘 .glass 유틸(@utility, backdrop-blur) + 오로라 radial-gradient 배경 + 포커스/스크롤바 디테일.
+   · layout.tsx: 메타데이터 Day Sphere, html lang=ko.
+   · 벤토 그리드 대시보드 셸(오늘 할 일/캘린더/알람/메모 4카드) + GlassCard(Framer Motion 등장·호버 인터랙션).
+   · Greeting: 시간대별 인사말(Intent-Driven UI 맛보기, 시각은 클라이언트에서 확정).
+  검증: npm run build 성공(Turbopack 컴파일 OK, TypeScript 통과, 정적 페이지 생성).
+
+------------------------------------------------------------
+
+[완료] 2. '오늘 할 일' 카드 기능화 (로컬 상태 추가·완료·삭제)  (2026-06-26 15:39:49)
+  어디: src/components/dashboard/todo-card.tsx (신규), src/app/page.tsx
+  무엇/어떻게:
+   · TodoCard 클라이언트 컴포넌트 신규: useState 로컬 상태로 할 일 추가 / 완료 토글 / 삭제.
+   · 입력 form(Enter 키 제출, 빈값일 때 추가 버튼 비활성화), 남은 개수 배지(비어 있음/N개 남음/모두 완료), 빈 목록 안내 문구.
+   · Framer Motion AnimatePresence + layout으로 항목 등장·퇴장·재배치 애니메이션(기존 GlassCard 톤 유지).
+   · 접근성(Rule_UIUX): 완료 토글 버튼 aria-pressed·aria-label, 삭제 버튼 aria-label, 입력칸 aria-label, 완료 상태는 색+취소선+✓로 함께 표시.
+   · page.tsx: 하드코딩 todos 배열·정적 목록 제거 후 <TodoCard delay={0}/>로 교체. CardHeader/badgeStyle은 나머지 3개 카드에서 계속 쓰여 유지.
+  검증: npm run build 성공(Turbopack 컴파일 OK, TypeScript 통과, 정적 페이지 4개 생성).
+
+------------------------------------------------------------
+
+[완료] 3. 데이터 영속화(localStorage) + 캘린더·알람·메모 카드 기능화  (2026-06-26 16:03:32)
+  어디: src/hooks/use-persistent-state.ts (신규), src/components/dashboard/card-header.tsx (신규),
+        src/components/dashboard/{memo-card,alarm-card,calendar-card}.tsx (신규),
+        src/components/dashboard/todo-card.tsx, src/app/page.tsx
+  무엇/어떻게:
+   · usePersistentState 훅: localStorage 기반, SSR 안전(초기값으로 첫 렌더 → 마운트 후 로드 → 변경 시 저장). 추후 DB 연동 시 이 훅만 교체.
+   · CardHeader 공유 컴포넌트 추출(BadgeColor 포함). page.tsx의 CardHeader/badgeStyle은 이 파일로 이동(page.tsx 내 고아 제거).
+   · TodoCard: useState → usePersistentState("ds.todos")로 교체, 목록 overflow-y-auto 스크롤화, 공유 CardHeader 사용.
+   · MemoCard(신규): 자유 메모 textarea, 입력 즉시 저장("ds.memo"), sm:col-span-2 와이드.
+   · AlarmCard(신규): 알람 시간 추가/켜짐·꺼짐 토글/삭제, 다음 알람(가장 이른 켜진 시간) 표시, 저장("ds.alarms").
+   · CalendarCard(신규): 일정 날짜+제목 추가/삭제, 날짜순 정렬, 건수 배지, 저장("ds.events").
+   · 접근성(Rule_UIUX): 모든 아이콘/토글 버튼 aria-label, 토글 aria-pressed, 상태는 색+문구 함께 표시.
+   · page.tsx: 정적 3개 카드 마크업 제거, GlassCard·CardHeader 직접 import 제거, 4개 카드 컴포넌트로 교체. 하단 문구를 "이 브라우저에 저장됩니다"로 갱신.
+  검증: npm run build 성공(Turbopack 컴파일 OK, TypeScript 통과, 정적 페이지 4개 생성). 브라우저 새로고침 유지 동작은 미검증(런타임 클릭 확인 안 함).
+
+------------------------------------------------------------
+
+[완료] 4. UX 피드백 반영 (호버 반응속도 · 레이아웃 여백 · 알람 실제 작동)  (2026-06-26 16:37:28)
+  어디: src/components/ui/glass-card.tsx, src/app/page.tsx, src/components/dashboard/{todo,calendar,alarm,memo}-card.tsx
+  무엇/어떻게:
+   · GlassCard whileHover에 전용 0.18s transition → 굼뜬 호버 제거.
+   · 2×2 균등 → 이후 사용자 요청으로 todo/calendar row-span 확대(비대칭) 조정.
+   · AlarmCard 실제 작동: 시계로 현재 시각 추적, '다음 알람' 자동 갱신, 시간 일치 시 배너+Web Audio 알림음 1회.
+  검증: 사용자 확인 — 알람 종소리+끄기 배너 정상 동작.
+  비고: 레이아웃/카드 부분은 task 5(앱 셸 재구성)로 전면 대체됨. 알람 발화 로직은 셸로 이전되어 유지.
+
+------------------------------------------------------------
+
+[완료] 5. 한 화면 고정 앱 셸 + 3탭 재구성 (할일·캘린더 통합 / 메모 목록 / 알람)  (2026-06-26 17:00:24)
+  배경: 절대 규칙(한 화면 고정·스크롤 금지) 신설 → 탭 구조로 전면 재구성.
+  결정(사용자): 상단 탭 3개 / 캘린더 중심 통합 / 할 일엔 마감 날짜·시간(일정)만.
+  어디: src/app/{layout,globals.css,page}.tsx, src/components/app-shell.tsx, src/components/tabs/{planner,memo,alarm}-tab.tsx, src/components/planner/month-calendar.tsx, src/lib/{alarm,date}.ts; 기존 dashboard 카드 4종+GlassCard+CardHeader 제거.
+  무엇/어떻게:
+   · 셸 고정: html/body h-full+overflow-hidden, globals body height 100vh·overflow hidden. 루트 flex 컬럼(헤더+탭바+main flex-1 min-h-0 overflow-hidden).
+   · AppShell(client): 헤더+탭바+활성 탭. 알람 감시(시계·울림·전역 배너) 셸 상주 → 어느 탭이든 동작. 알람 상태 셸 보유, AlarmTab에 props.
+   · PlannerTab: 월간 캘린더(좌)+선택일 할 일(우, 내부 스크롤). ds.tasks={id,date,time,title,done}. 일정 있는 날 점 표시, 오늘 강조.
+   · MemoTab: 메모 목록(새 메모/선택/삭제)+편집기(자동 저장). ds.memos={id,text}[].
+   · AlarmTab: 알람 추가/토글/삭제. 울림 배너는 셸 전역.
+  검증: tsc 통과, dev 컴파일/200, 사용자 확인 — 3탭 스크롤 없이 한 화면, 구조 만족.
+
