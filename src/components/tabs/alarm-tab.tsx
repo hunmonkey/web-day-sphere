@@ -37,6 +37,10 @@ const QUICK: { label: string; seconds: number }[][] = [
   ],
 ];
 
+function quickAlarmTime(seconds: number) {
+  return nowHHMMSS(new Date(Date.now() + seconds * 1000));
+}
+
 export function AlarmTab({ alarms, setAlarms }: Props) {
   const [time, setTime] = useState("");
   const [now, setNow] = useState<string | null>(null); // HH:MM:SS
@@ -60,7 +64,7 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
   }
 
   function quick(seconds: number) {
-    addAt(nowHHMMSS(new Date(Date.now() + seconds * 1000)));
+    addAt(quickAlarmTime(seconds));
   }
 
   function toggleAlarm(id: string) {

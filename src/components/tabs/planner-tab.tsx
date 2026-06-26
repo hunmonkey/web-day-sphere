@@ -31,10 +31,14 @@ export function PlannerTab() {
 
   // 마운트 후 오늘 날짜 확정(하이드레이션 보호)
   useEffect(() => {
-    const d = new Date();
-    setToday(localDateStr(d));
-    setSelected(localDateStr(d));
-    setView({ y: d.getFullYear(), m: d.getMonth() });
+    const id = window.setTimeout(() => {
+      const d = new Date();
+      const date = localDateStr(d);
+      setToday(date);
+      setSelected(date);
+      setView({ y: d.getFullYear(), m: d.getMonth() });
+    }, 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   if (!view || !selected) {

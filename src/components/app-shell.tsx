@@ -28,15 +28,12 @@ export function AppShell() {
   const [alarms, setAlarms] = usePersistentState<Alarm[]>("ds.alarms.v2", seedAlarms);
   const [ringing, setRinging] = useState<string | null>(null);
 
-  // 인터벌이 항상 최신 알람을 보도록 ref로 전달(초당 재렌더 방지)
-  const alarmsRef = useRef(alarms);
-  alarmsRef.current = alarms;
   const firedAt = useRef("");
 
   useEffect(() => {
     const id = setInterval(() => {
       const now = nowHHMMSS();
-      const hit = alarmsRef.current.some((a) => a.on && a.at === now);
+      const hit = alarms.some((a) => a.on && a.at === now);
       if (hit) {
         if (firedAt.current !== now) {
           firedAt.current = now;
@@ -48,7 +45,7 @@ export function AppShell() {
       }
     }, 250); // 초 단위 알람이 드리프트로 누락되지 않도록 촘촘히 확인(같은 초 중복은 firedAt로 방지)
     return () => clearInterval(id);
-  }, []);
+  }, [alarms]);
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-5 py-4 sm:px-8 sm:py-5">

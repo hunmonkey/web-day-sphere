@@ -19,13 +19,16 @@ export function usePersistentState<T>(
 
   // 마운트 후 1회 저장값 로드
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw !== null) setState(JSON.parse(raw) as T);
-    } catch {
-      // 손상된 값은 무시하고 initial 유지
-    }
-    setLoaded(true);
+    const id = window.setTimeout(() => {
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (raw !== null) setState(JSON.parse(raw) as T);
+      } catch {
+        // 손상된 값은 무시하고 initial 유지
+      }
+      setLoaded(true);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [key]);
 
   // 로드 완료 후 변경분 저장
