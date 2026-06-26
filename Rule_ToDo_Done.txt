@@ -1,0 +1,22 @@
+============================================================
+AI 작업 인수인계용 진행 기록 / To-Do Done
+============================================================
+
+이 파일은 AI가 작성한 Rule_ToDo.txt 파일에서 완료된 작업을 아카이빙 하는 파일입니다.
+기존의 내용은 지우지 말고 최하단에 '------------------------------------------------------------' 문구를 삽입한 이후 이 아래줄에 이어서 기록합니다.
+
+
+------------------------------------------------------------
+■ 완료 사항
+------------------------------------------------------------
+
+[완료] 0. 프로젝트 초기화 (Next.js + Tailwind + Framer Motion)  (2026-06-26 14:47:11)
+  어디: 프로젝트 루트(Web-Day Sphrer/), 신규 생성
+  무엇/어떻게:
+   · create-next-app(Next 16.2.9): TypeScript, App Router, ESLint, Tailwind v4, src/ 구조, @/* 별칭, Turbopack(Next 16 기본).
+   · 폴더명에 공백/대문자가 있어 npm 이름 규칙 위반 → scratchpad에 day-sphere로 생성 후 결과물만 루트로 이동(거버넌스 문서 7개 보존).
+   · create-next-app이 만든 템플릿 AGENTS.md/CLAUDE.md 스텁은 루트 원본 보호를 위해 이동 전 삭제.
+   · npm install 후 framer-motion 추가 설치(react 19.2.4, react-dom 19.2.4).
+  검증: npm run build 성공(Turbopack 컴파일 OK, TypeScript 통과, 정적 페이지 4개 생성).
+  비고(미해결): sharp / unrs-resolver install 스크립트 미승인(npm allow-scripts), npm audit moderate 2건. 추후 검토.
+
