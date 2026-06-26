@@ -86,3 +86,22 @@ AI 작업 인수인계용 진행 기록 / To-Do Done
    · AlarmTab: 알람 추가/토글/삭제. 울림 배너는 셸 전역.
   검증: tsc 통과, dev 컴파일/200, 사용자 확인 — 3탭 스크롤 없이 한 화면, 구조 만족.
 
+------------------------------------------------------------
+
+[완료] 6. 세부 조정 (헤더 간소화 / 패널 비율 / 캘린더 개수 / 알람 빠른추가·현재시간)  (2026-06-26 18:50:00)
+  어디: src/components/dashboard/greeting.tsx, src/components/app-shell.tsx,
+        src/components/tabs/{planner,memo,alarm}-tab.tsx, src/components/planner/month-calendar.tsx, src/lib/alarm.ts
+  무엇/어떻게:
+   · 헤더: Greeting을 "YYYY년 MM월 DD일 (요일) HH:MM" 한 줄 표시로 유지. 셸 우측 중복 시계 없음 확인.
+   · 할일·캘린더: 좌(달력):우(할일) 비율 3.5:6.5 확인. 캘린더 날짜에 할 일 개수 숫자 표시 확인.
+   · 메모: 목록:편집기 비율 3.5:6.5 확인.
+   · 알람: at="HH:MM:SS" 모델과 ds.alarms.v2 저장키 유지. 셸 알람 감시는 1초 인터벌 + alarmsRef 최신값 참조로 조정.
+   · 알람 직접 입력: type="time" step="1"로 초 단위 입력 가능. HH:MM 입력은 HH:MM:00으로 정규화.
+   · 빠른 추가: 30/60/90초, 5/10/15/20/25/30분, 1/2/3/4시간 버튼이 현재+오프셋 시각으로 알람 생성.
+  검증:
+   · npm run lint 통과.
+   · npm run build 통과(Next.js 16.2.9, Turbopack, TypeScript 통과).
+   · dev 서버: npm run dev -- --hostname 127.0.0.1 --port 3000, HTTP 200 확인.
+   · Chrome 자동 검증(1366x768): 헤더 형식, 페이지 스크롤 없음, Planner/Memo 비율 0.35, 오늘 날짜 할 일 개수, 30초 빠른 알람 배너 확인.
+   · Chrome 자동 검증(모바일 폭): 페이지 스크롤 없음 확인.
+

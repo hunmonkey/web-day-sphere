@@ -41,6 +41,10 @@ function quickAlarmTime(seconds: number) {
   return nowHHMMSS(new Date(Date.now() + seconds * 1000));
 }
 
+function normalizeTime(value: string) {
+  return value.length === 5 ? `${value}:00` : value;
+}
+
 export function AlarmTab({ alarms, setAlarms }: Props) {
   const [time, setTime] = useState("");
   const [now, setNow] = useState<string | null>(null); // HH:MM:SS
@@ -59,7 +63,7 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
   function addManual(e: FormEvent) {
     e.preventDefault();
     if (!time) return;
-    addAt(`${time}:00`);
+    addAt(normalizeTime(time));
     setTime("");
   }
 
@@ -114,6 +118,7 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
           <form onSubmit={addManual} className="flex gap-2">
             <input
               type="time"
+              step="1"
               value={time}
               onChange={(e) => setTime(e.target.value)}
               aria-label="알람 시간"
