@@ -2,13 +2,9 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
-import { usePersistentState } from "@/hooks/use-persistent-state";
-
-type Memo = { id: string; text: string };
-
-const seedMemos: Memo[] = [
-  { id: "m1", text: "글래스모피즘 + 벤토 그리드로 첫 화면을 잡자." },
-];
+import { InkCanvas, type InkStroke } from "@/components/memo/ink-canvas";
+import { useVault } from "@/components/vault/vault-provider";
+import { exportStrokesJpg, exportStrokesSvg } from "@/lib/export-image";
 
 const panel = "glass rounded-3xl p-5 min-h-0";
 
@@ -19,10 +15,9 @@ function preview(text: string) {
 }
 
 export function MemoTab() {
-  const [memos, setMemos] = usePersistentState<Memo[]>("ds.memos", seedMemos);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    seedMemos[0]?.id ?? null,
-  );
+  const { memos, setMemos } = useVault();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"text" | "ink">("text");
 
   const selected = memos.find((m) => m.id === selectedId) ?? memos[0] ?? null;
 
@@ -34,6 +29,10 @@ export function MemoTab() {
 
   function updateMemo(id: string, text: string) {
     setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)));
+  }
+
+  function updateInk(id: string, ink: InkStroke[]) {
+    setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, ink } : m)));
   }
 
   function removeMemo(id: string) {
@@ -80,7 +79,7 @@ export function MemoTab() {
                       : "text-muted hover:bg-surface-strong hover:text-fg"
                   }`}
                 >
-                  {preview(m.text)}
+                  {m.text.trim() ? preview(m.text) : (m.ink?.length ?? 0) > 0 ? "손글씨 메모" : "빈 메모"}
                 </button>
                 <button
                   type="button"
@@ -106,18 +105,88 @@ export function MemoTab() {
         {selected ? (
           <>
             <div className="mb-3 flex shrink-0 items-center justify-between">
-              <span className="text-sm text-muted">메모 편집</span>
-              <span className="rounded-full bg-neutral/15 px-2.5 py-1 text-xs font-medium text-neutral">
-                자동 저장
-              </span>
+              <div className="flex rounded-xl border border-border p-1">
+                <button
+                  type="button"
+                  onClick={() => setMode("text")}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                    mode === "text"
+                      ? "bg-accent text-accent-fg"
+                      : "text-muted hover:bg-surface-strong hover:text-fg"
+                  }`}
+                >
+                  텍스트
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("ink")}
+                  className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                    mode === "ink"
+                      ? "bg-accent text-accent-fg"
+                      : "text-muted hover:bg-surface-strong hover:text-fg"
+                  }`}
+                >
+                  손글씨
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {mode === "ink" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        exportStrokesSvg(
+                          selected.ink ?? [],
+                          `손글씨-${selected.id.slice(0, 8)}.svg`,
+                        )
+                      }
+                      disabled={(selected.ink?.length ?? 0) === 0}
+                      className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      SVG
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        exportStrokesJpg(
+                          selected.ink ?? [],
+                          `손글씨-${selected.id.slice(0, 8)}.jpg`,
+                        )
+                      }
+                      disabled={(selected.ink?.length ?? 0) === 0}
+                      className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      JPG
+                    </button>
+                  </>
+                )}
+                <span className="rounded-full bg-neutral/15 px-2.5 py-1 text-xs font-medium text-neutral">
+                  자동 저장
+                </span>
+              </div>
             </div>
-            <textarea
-              value={selected.text}
-              onChange={(e) => updateMemo(selected.id, e.target.value)}
-              aria-label="메모 내용"
-              placeholder="메모를 입력하세요. 입력하는 즉시 저장됩니다."
-              className="min-h-0 flex-1 resize-none rounded-xl border border-border bg-surface-strong px-3.5 py-3 text-sm leading-relaxed text-fg placeholder:text-muted"
-            />
+            {mode === "text" ? (
+              <textarea
+                value={selected.text}
+                onChange={(e) => updateMemo(selected.id, e.target.value)}
+                aria-label="메모 내용"
+                placeholder="메모를 입력하세요. 입력하는 즉시 저장됩니다."
+                className="min-h-0 flex-1 resize-none rounded-xl border border-border bg-surface-strong px-3.5 py-3 text-sm leading-relaxed text-fg placeholder:text-muted"
+              />
+            ) : (
+              <InkCanvas
+                strokes={selected.ink ?? []}
+                onChange={(ink) => updateInk(selected.id, ink)}
+                onConvert={(text) =>
+                  updateMemo(
+                    selected.id,
+                    selected.text.trim()
+                      ? `${selected.text.trim()}\n${text}`
+                      : text,
+                  )
+                }
+              />
+            )}
           </>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-muted">

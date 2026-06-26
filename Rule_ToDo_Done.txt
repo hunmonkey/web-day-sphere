@@ -159,3 +159,24 @@ AI 작업 인수인계용 진행 기록 / To-Do Done
    · 생성된 Tasks Markdown 체크박스, 메모 Markdown의 SVG 연결, SVG 내부 line 요소 확인.
    · git check-ignore -v ".day-sphere/obsidian-vault/Day Sphere.md" 결과 .gitignore의 .day-sphere/ 규칙 확인.
 
+
+------------------------------------------------------------
+
+[완료] 10. Markdown(Vault) 1차 저장소 + 손글씨 변환 + 외부 내보내기  (2026-06-26 22:04:41)
+  어디: src/lib/{vault-types,handwriting,ink-svg,export-image,export-pdf}.ts, src/lib/server/vault-store.ts,
+        src/app/api/vault/route.ts, src/components/vault/vault-provider.tsx,
+        src/components/{app-shell,tabs/planner-tab,tabs/memo-tab,tabs/obsidian-tab,memo/ink-canvas}.tsx,
+        src/app/page.tsx, Rule_Project_Etc.txt, package.json
+  무엇/어떻게:
+   · 모든 데이터의 원본을 Markdown(Vault)으로 전환. 앱 시작 시 GET /api/vault로 읽고, 변경 시 debounce 후 PUT으로 자동 저장. localStorage는 캐시.
+   · vault-store: 무손실 라운드트립(체크박스 ^id, 손글씨 _assets/<id>.ink.json+svg, 알람 frontmatter), 멱등 저장, "최근 수정 우선" 충돌 가드.
+   · VaultProvider로 상태를 끌어올리고 기존 localStorage(ds.*) 데이터를 1회 마이그레이션.
+   · 손글씨→텍스트 변환: 브라우저 내장 Handwriting Recognition API(오프라인). 기능 감지 후 미지원 시 비활성화/안내. 변환 결과는 메모 텍스트에 누적.
+   · 외부 내보내기: 손글씨 SVG/JPG(클라이언트), 할일·캘린더/메모 PDF(브라우저 인쇄). Obsidian 탭을 동기화 상태+내보내기 허브로 개편.
+   · 구 POST /api/obsidian/export(미커밋이던 1차 구현) 제거. gray-matter 의존성 추가.
+  검증:
+   · npx tsc --noEmit, npx eslint src 통과.
+   · vault-store 격리 번들로 디스크 read/write 검증: 무손실 라운드트립(손글씨 획+타임스탬프 포함), 멱등 저장, 충돌 가드, 삭제 정리 확인.
+   · handwriting 모의 검증: 기능 감지, 획→{x,y,t} 매핑, 타임스탬프 단조성, finish 정리.
+   · export-pdf 검증: 날짜 그룹/시간 정렬, HTML 이스케이프, 손글씨 SVG 임베드, 빈 입력 처리.
+   · 미검증(실기기 필요): 실제 손글씨 인식 품질(S펜+한글 모델), 인앱 자동 로드/저장 동작.

@@ -3,26 +3,13 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState, type FormEvent } from "react";
 import { MonthCalendar } from "@/components/planner/month-calendar";
-import { usePersistentState } from "@/hooks/use-persistent-state";
+import { useVault } from "@/components/vault/vault-provider";
 import { localDateStr, longDate } from "@/lib/date";
-
-type Task = {
-  id: string;
-  date: string; // YYYY-MM-DD
-  time: string; // "" 또는 HH:MM
-  title: string;
-  done: boolean;
-};
-
-const seedTasks: Task[] = [
-  { id: "t1", date: "2026-06-26", time: "", title: "보고서 정리", done: false },
-  { id: "t2", date: "2026-06-27", time: "15:00", title: "팀 미팅", done: false },
-];
 
 const panel = "glass rounded-3xl p-5 min-h-0";
 
 export function PlannerTab() {
-  const [tasks, setTasks] = usePersistentState<Task[]>("ds.tasks", seedTasks);
+  const { tasks, setTasks } = useVault();
   const [today, setToday] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<{ y: number; m: number } | null>(null);
