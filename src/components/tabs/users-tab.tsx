@@ -97,11 +97,12 @@ export function UsersTab({
         />
         <input
           type="password"
+          inputMode="numeric"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="임시 비밀번호"
+          onChange={(e) => setPassword(e.target.value.replace(/\D/g, "").slice(0, 4))}
+          placeholder="숫자 4자리"
           aria-label="새 사용자 임시 비밀번호"
-          minLength={8}
+          maxLength={4}
           className="min-w-0 rounded-xl border border-border bg-surface-strong px-3 py-2 text-sm text-fg placeholder:text-muted"
           required
         />
@@ -173,16 +174,19 @@ export function UsersTab({
             <div className="flex min-w-0 gap-1">
               <input
                 type="password"
+                inputMode="numeric"
                 value={resetPasswords[user.id] ?? ""}
-                onChange={(e) => setResetValue(user.id, e.target.value)}
-                placeholder="새 비밀번호"
+                onChange={(e) =>
+                  setResetValue(user.id, e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                placeholder="숫자 4자리"
                 aria-label={`${user.name} 새 비밀번호`}
-                minLength={8}
+                maxLength={4}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2.5 py-1 text-xs text-fg placeholder:text-muted"
               />
               <button
                 type="button"
-                disabled={busy || (resetPasswords[user.id] ?? "").length < 8}
+                disabled={busy || !/^\d{4}$/.test(resetPasswords[user.id] ?? "")}
                 onClick={() => resetPassword(user.id)}
                 className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
               >

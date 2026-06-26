@@ -83,8 +83,8 @@ function passwordMatches(password: string, user: StoredUser) {
 }
 
 function assertPassword(password: string) {
-  if (password.length < 8) {
-    throw new Error("비밀번호는 8자 이상이어야 합니다.");
+  if (!/^\d{4}$/.test(password)) {
+    throw new Error("비밀번호는 숫자 4자리여야 합니다.");
   }
 }
 

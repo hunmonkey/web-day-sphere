@@ -19,6 +19,10 @@ export function AuthGate({ mode }: Props) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (isSetup && !/^\d{4}$/.test(password)) {
+      setError("비밀번호는 숫자 4자리여야 합니다.");
+      return;
+    }
     if (isSetup && password !== confirm) {
       setError("비밀번호 확인이 맞지 않습니다.");
       return;
@@ -87,11 +91,17 @@ export function AuthGate({ mode }: Props) {
             <span className="text-xs font-medium text-muted">비밀번호</span>
             <input
               type="password"
+              inputMode={isSetup ? "numeric" : undefined}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(
+                  isSetup ? e.target.value.replace(/\D/g, "").slice(0, 4) : e.target.value,
+                )
+              }
               className="mt-1 w-full rounded-xl border border-border bg-surface-strong px-3.5 py-2.5 text-sm text-fg outline-none placeholder:text-muted"
               autoComplete={isSetup ? "new-password" : "current-password"}
-              minLength={8}
+              placeholder={isSetup ? "숫자 4자리" : undefined}
+              maxLength={isSetup ? 4 : undefined}
               required
             />
           </label>
@@ -101,11 +111,13 @@ export function AuthGate({ mode }: Props) {
               <span className="text-xs font-medium text-muted">비밀번호 확인</span>
               <input
                 type="password"
+                inputMode="numeric"
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={(e) => setConfirm(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 className="mt-1 w-full rounded-xl border border-border bg-surface-strong px-3.5 py-2.5 text-sm text-fg outline-none placeholder:text-muted"
                 autoComplete="new-password"
-                minLength={8}
+                placeholder="숫자 4자리"
+                maxLength={4}
                 required
               />
             </label>
