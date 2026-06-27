@@ -16,6 +16,26 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Production hosting
+
+- Public address: [https://day.jaehoon.org](https://day.jaehoon.org)
+- Unraid host port: `36524`
+- Container port: `3000`
+
+Run the Unraid production compose file from the project root:
+
+```bash
+docker compose -f docker-compose.unraid.yml up -d --build
+```
+
+For Cloudflare Tunnel or a reverse proxy, point `day.jaehoon.org` to:
+
+```text
+http://<Unraid server IP>:36524
+```
+
+Persistent app data is stored at `/mnt/user/appdata/Web-Day-Sphere/data` on Unraid and mounted to `/app/.day-sphere` inside the container.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

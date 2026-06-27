@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://day.jaehoon.org"),
   title: "Day Sphere — 하루를 한 곳에서",
   description:
     "할 일, 캘린더, 알람, 메모를 한 화면에서 관리하는 프리미엄 통합 대시보드.",

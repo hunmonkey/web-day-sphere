@@ -66,3 +66,13 @@
 ------------------------------------------------------------
 - 손글씨: SVG/JPG로 다운로드(`src/lib/export-image.ts`, 클라이언트, 의존성 0). SVG 렌더는 `src/lib/ink-svg.ts` 공용.
 - 할일·캘린더 / 메모 텍스트: 인쇄 창을 띄워 "PDF로 저장"(`src/lib/export-pdf.ts`). 한글은 시스템 폰트로 렌더(폰트 번들 불필요).
+
+
+3. 운영 배포 기준 (Unraid / day.jaehoon.org)
+------------------------------------------------------------
+- 외부 접속 주소는 `https://day.jaehoon.org`를 기준으로 한다.
+- 운영 Docker 설정 파일은 루트의 `docker-compose.unraid.yml`을 기준으로 한다.
+- 컨테이너 내부 Next.js 포트는 `3000`, Unraid 호스트에 공개할 포트는 `36524`로 고정한다.
+  예: Cloudflare Tunnel 또는 리버스 프록시 대상은 `http://<Unraid 서버 IP>:36524`.
+- 운영 데이터는 `/mnt/user/appdata/Web-Day-Sphere/data`를 컨테이너의 `/app/.day-sphere`에 연결해 보존한다.
+- 앱은 Docker 안에서 Node 서버(`next start`)로 실행한다.
