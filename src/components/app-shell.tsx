@@ -5,19 +5,18 @@ import { Greeting } from "@/components/dashboard/greeting";
 import { PlannerTab } from "@/components/tabs/planner-tab";
 import { MemoTab } from "@/components/tabs/memo-tab";
 import { AlarmTab } from "@/components/tabs/alarm-tab";
-import { ObsidianTab } from "@/components/tabs/obsidian-tab";
-import { UsersTab } from "@/components/tabs/users-tab";
+import { SettingsTab } from "@/components/tabs/settings-tab";
 import { useVault } from "@/components/vault/vault-provider";
 import { beep, fmtAt, nowHHMMSS } from "@/lib/alarm";
 import type { AuthUser } from "@/lib/auth-types";
 
-type TabId = "planner" | "memo" | "alarm" | "obsidian" | "users";
+type TabId = "planner" | "memo" | "alarm" | "settings";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "planner", label: "할 일 · 캘린더" },
   { id: "memo", label: "메모" },
   { id: "alarm", label: "알람" },
-  { id: "obsidian", label: "Obsidian" },
+  { id: "settings", label: "설정" },
 ];
 
 /**
@@ -38,10 +37,6 @@ export function AppShell({
 
   const firedAt = useRef("");
   const alarmsRef = useRef(alarms);
-  const tabs =
-    currentUser.role === "admin"
-      ? [...TABS, { id: "users" as const, label: "사용자" }]
-      : TABS;
 
   useEffect(() => {
     alarmsRef.current = alarms;
@@ -113,7 +108,7 @@ export function AppShell({
         aria-label="화면 전환"
         className="mb-4 flex shrink-0 gap-1 rounded-2xl glass p-1"
       >
-        {tabs.map((t) => (
+        {TABS.map((t) => (
           <button
             key={t.id}
             role="tab"
@@ -135,9 +130,8 @@ export function AppShell({
         {tab === "planner" && <PlannerTab />}
         {tab === "memo" && <MemoTab />}
         {tab === "alarm" && <AlarmTab alarms={alarms} setAlarms={setAlarms} />}
-        {tab === "obsidian" && <ObsidianTab canManageVault={currentUser.role === "admin"} />}
-        {tab === "users" && currentUser.role === "admin" && (
-          <UsersTab currentUser={currentUser} initialUsers={initialUsers} />
+        {tab === "settings" && (
+          <SettingsTab currentUser={currentUser} initialUsers={initialUsers} />
         )}
       </main>
     </div>
