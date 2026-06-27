@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import matter from "gray-matter";
 import { longDate } from "@/lib/date";
 import { strokesToSvg } from "@/lib/ink-svg";
+import { getVaultRoot as getConfiguredVaultRoot } from "@/lib/server/vault-settings";
 import {
   emptyVault,
   type Alarm,
@@ -29,10 +30,6 @@ import {
  * 디스크 파일이 baseSyncedAt 이후 변경됐으면(=Obsidian/Syncthing이 건드림) 덮어쓰지 않고 충돌로 보고.
  */
 
-const EXPORT_ROOT =
-  process.env.DAY_SPHERE_OBSIDIAN_DIR ??
-  path.join(process.cwd(), ".day-sphere", "obsidian-vault");
-
 const CALENDAR_DIR = "Calendar";
 const MEMOS_DIR = "Memos";
 const ASSETS_DIR = "_assets";
@@ -42,18 +39,18 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // - [x] 15:00 제목 ^id  (시간·id는 선택)
 const TASK_RE = /^- \[([ xX])\]\s+(?:(\d{1,2}:\d{2})\s+)?(.*?)(?:\s+\^([\w-]+))?\s*$/;
 
-export function getVaultRoot() {
-  return EXPORT_ROOT;
+export async function getVaultRoot() {
+  return getConfiguredVaultRoot();
 }
 
 // ─────────────────────────────── 공용 유틸 ───────────────────────────────
 
-function abs(relativePath: string) {
-  return path.join(EXPORT_ROOT, relativePath);
+function abs(root: string, relativePath: string) {
+  return path.join(root, relativePath);
 }
 
-function rel(fullPath: string) {
-  return path.relative(EXPORT_ROOT, fullPath).replace(/\\/g, "/");
+function rel(root: string, fullPath: string) {
+  return path.relative(root, fullPath).replace(/\\/g, "/");
 }
 
 function safeId(value: string | undefined, fallback: string) {
@@ -70,9 +67,9 @@ function fmtAt(at: string) {
   return s === "00" ? `${h}:${m}` : `${h}:${m}:${s ?? "00"}`;
 }
 
-async function listMd(dir: string): Promise<string[]> {
+async function listMd(root: string, dir: string): Promise<string[]> {
   try {
-    const entries = await readdir(abs(dir), { withFileTypes: true });
+    const entries = await readdir(abs(root, dir), { withFileTypes: true });
     return entries
       .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".md"))
       .map((e) => e.name);
@@ -82,9 +79,12 @@ async function listMd(dir: string): Promise<string[]> {
   }
 }
 
-async function readTextOrNull(relativePath: string): Promise<string | null> {
+async function readTextOrNull(
+  root: string,
+  relativePath: string,
+): Promise<string | null> {
   try {
-    return await readFile(abs(relativePath), "utf8");
+    return await readFile(abs(root, relativePath), "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
@@ -150,8 +150,8 @@ function parseDayNote(date: string, raw: string): Task[] {
   return tasks;
 }
 
-async function parseMemoFile(fileName: string): Promise<Memo> {
-  const raw = (await readTextOrNull(`${MEMOS_DIR}/${fileName}`)) ?? "";
+async function parseMemoFile(root: string, fileName: string): Promise<Memo> {
+  const raw = (await readTextOrNull(root, `${MEMOS_DIR}/${fileName}`)) ?? "";
   const { data, content } = matter(raw);
   const id = typeof data.id === "string" ? data.id : fileName.replace(/\.md$/i, "");
 
@@ -162,7 +162,7 @@ async function parseMemoFile(fileName: string): Promise<Memo> {
 
   let ink: InkStroke[] | undefined;
   if (typeof data.ink === "string") {
-    const inkRaw = await readTextOrNull(data.ink);
+    const inkRaw = await readTextOrNull(root, data.ink);
     if (inkRaw) {
       try {
         const parsed = JSON.parse(inkRaw) as InkStroke[];
@@ -200,20 +200,21 @@ function parseAlarms(raw: string): Alarm[] {
 // ─────────────────────────────── 읽기 ───────────────────────────────
 
 export async function readVault(): Promise<{ data: VaultData; syncedAt: number }> {
+  const root = await getVaultRoot();
   const data = emptyVault();
 
-  for (const name of await listMd(CALENDAR_DIR)) {
+  for (const name of await listMd(root, CALENDAR_DIR)) {
     const date = name.replace(/\.md$/i, "");
     if (!DATE_RE.test(date)) continue;
-    const raw = await readTextOrNull(`${CALENDAR_DIR}/${name}`);
+    const raw = await readTextOrNull(root, `${CALENDAR_DIR}/${name}`);
     if (raw) data.tasks.push(...parseDayNote(date, raw));
   }
 
-  for (const name of await listMd(MEMOS_DIR)) {
-    data.memos.push(await parseMemoFile(name));
+  for (const name of await listMd(root, MEMOS_DIR)) {
+    data.memos.push(await parseMemoFile(root, name));
   }
 
-  const alarmsRaw = await readTextOrNull(ALARMS_FILE);
+  const alarmsRaw = await readTextOrNull(root, ALARMS_FILE);
   if (alarmsRaw) data.alarms = parseAlarms(alarmsRaw);
 
   return { data, syncedAt: Date.now() };
@@ -221,19 +222,24 @@ export async function readVault(): Promise<{ data: VaultData; syncedAt: number }
 
 // ─────────────────────────────── 쓰기(원자적 + 충돌 가드) ───────────────────────────────
 
-async function writeAtomic(relativePath: string, content: string) {
-  const full = abs(relativePath);
+async function writeAtomic(root: string, relativePath: string, content: string) {
+  const full = abs(root, relativePath);
   await mkdir(path.dirname(full), { recursive: true });
   const tmp = `${full}.tmp`;
   await writeFile(tmp, content, "utf8");
   await rename(tmp, full);
 }
 
-type WriteCtx = { base: number; written: string[]; conflicts: string[] };
+type WriteCtx = {
+  base: number;
+  root: string;
+  written: string[];
+  conflicts: string[];
+};
 
 /** 내용이 바뀌었고 충돌이 없을 때만 기록. base 이후 외부 수정이 있으면 충돌로 보고하고 보존. */
 async function writeIfSafe(relativePath: string, content: string, ctx: WriteCtx) {
-  const full = abs(relativePath);
+  const full = abs(ctx.root, relativePath);
   let existing: string | null = null;
   let mtime = 0;
   try {
@@ -244,24 +250,24 @@ async function writeIfSafe(relativePath: string, content: string, ctx: WriteCtx)
   }
   if (existing === content) return;
   if (existing !== null && ctx.base > 0 && mtime > ctx.base) {
-    ctx.conflicts.push(rel(full));
+    ctx.conflicts.push(rel(ctx.root, full));
     return;
   }
-  await writeAtomic(relativePath, content);
-  ctx.written.push(rel(full));
+  await writeAtomic(ctx.root, relativePath, content);
+  ctx.written.push(rel(ctx.root, full));
 }
 
 /** base 이후 외부 수정이 없을 때만 삭제. */
 async function deleteIfSafe(relativePath: string, ctx: WriteCtx) {
-  const full = abs(relativePath);
+  const full = abs(ctx.root, relativePath);
   try {
     const mtime = (await stat(full)).mtimeMs;
     if (ctx.base > 0 && mtime > ctx.base) {
-      ctx.conflicts.push(rel(full));
+      ctx.conflicts.push(rel(ctx.root, full));
       return;
     }
     await unlink(full);
-    ctx.written.push(`삭제: ${rel(full)}`);
+    ctx.written.push(`삭제: ${rel(ctx.root, full)}`);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -271,7 +277,12 @@ export async function writeVault(
   data: VaultData,
   baseSyncedAt = 0,
 ): Promise<{ syncedAt: number; written: string[]; conflicts: string[] }> {
-  const ctx: WriteCtx = { base: baseSyncedAt, written: [], conflicts: [] };
+  const ctx: WriteCtx = {
+    base: baseSyncedAt,
+    root: await getVaultRoot(),
+    written: [],
+    conflicts: [],
+  };
 
   // 1) 할 일 → 날짜별 노트
   const byDate = new Map<string, Task[]>();
@@ -282,7 +293,7 @@ export async function writeVault(
   for (const [date, tasks] of byDate) {
     await writeIfSafe(`${CALENDAR_DIR}/${date}.md`, generateDayNote(date, tasks), ctx);
   }
-  for (const name of await listMd(CALENDAR_DIR)) {
+  for (const name of await listMd(ctx.root, CALENDAR_DIR)) {
     const date = name.replace(/\.md$/i, "");
     if (DATE_RE.test(date) && !byDate.has(date)) {
       await deleteIfSafe(`${CALENDAR_DIR}/${name}`, ctx);
@@ -306,7 +317,7 @@ export async function writeVault(
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
     }
   }
-  for (const name of await listMd(MEMOS_DIR)) {
+  for (const name of await listMd(ctx.root, MEMOS_DIR)) {
     const id = name.replace(/\.md$/i, "");
     if (!memoIds.has(id)) {
       await deleteIfSafe(`${MEMOS_DIR}/${name}`, ctx);

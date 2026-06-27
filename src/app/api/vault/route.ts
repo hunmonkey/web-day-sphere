@@ -24,7 +24,7 @@ export async function GET() {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }
   const { data, syncedAt } = await readVault();
-  return NextResponse.json({ ok: true, data, syncedAt, targetDir: getVaultRoot() });
+  return NextResponse.json({ ok: true, data, syncedAt, targetDir: await getVaultRoot() });
 }
 
 export async function PUT(request: Request) {
@@ -36,5 +36,5 @@ export async function PUT(request: Request) {
   const data = normalize(body.data);
   const base = typeof body.baseSyncedAt === "number" ? body.baseSyncedAt : 0;
   const result = await writeVault(data, base);
-  return NextResponse.json({ ok: true, targetDir: getVaultRoot(), ...result });
+  return NextResponse.json({ ok: true, targetDir: await getVaultRoot(), ...result });
 }

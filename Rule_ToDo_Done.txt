@@ -192,3 +192,22 @@ AI 작업 인수인계용 진행 기록 / To-Do Done
   검증:
    · npx tsc --noEmit, npx eslint src 통과.
    · auth-store 격리 번들 테스트: 4자리만 허용("12"/"abcd"/"12345"/"12a4"/"" 거부), 생성·재설정 정책 적용, 로그인 정상(오답 실패) 확인.
+
+------------------------------------------------------------
+
+[완료] 12. Obsidian 저장 위치 사용자 설정  (2026-06-27 12:00:16)
+  어디: src/lib/server/vault-settings.ts, src/lib/server/vault-store.ts,
+        src/app/api/vault/route.ts, src/app/api/vault/settings/route.ts,
+        src/app/api/vault/directories/route.ts, src/components/vault/vault-provider.tsx,
+        src/components/tabs/obsidian-tab.tsx, src/components/app-shell.tsx,
+        Rule_Project_Etc.txt
+  무엇/어떻게:
+   · Obsidian Vault 저장 위치를 .day-sphere/settings.json에 저장하도록 추가.
+   · 기존 DAY_SPHERE_OBSIDIAN_DIR은 기본값으로 유지하고, 관리자가 앱에서 바꾼 저장 위치가 우선되도록 변경.
+   · 서버가 접근 가능한 데이터 폴더 안에서만 폴더 탐색/선택 가능하도록 제한.
+   · Obsidian 탭에 저장 위치 입력칸, 폴더 찾기 모달, 적용 버튼을 추가.
+  검증:
+   · npm run lint 통과.
+   · npm run build 통과(Next/Turbopack 런타임 데이터 폴더 추적 경고 1건은 기존과 같은 계열).
+   · 임시 DAY_SPHERE_DATA_DIR/DAY_SPHERE_OBSIDIAN_DIR로 next start 실행 후 /api/vault/settings GET/PATCH,
+     /api/vault/directories GET, /api/vault GET targetDir 반영, 새 폴더 생성 확인.

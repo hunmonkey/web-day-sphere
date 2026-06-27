@@ -135,7 +135,7 @@ export function AppShell({
         {tab === "planner" && <PlannerTab />}
         {tab === "memo" && <MemoTab />}
         {tab === "alarm" && <AlarmTab alarms={alarms} setAlarms={setAlarms} />}
-        {tab === "obsidian" && <ObsidianTab />}
+        {tab === "obsidian" && <ObsidianTab canManageVault={currentUser.role === "admin"} />}
         {tab === "users" && currentUser.role === "admin" && (
           <UsersTab currentUser={currentUser} initialUsers={initialUsers} />
         )}

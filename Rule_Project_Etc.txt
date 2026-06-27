@@ -43,7 +43,9 @@
   앱 시작 시 `GET /api/vault`로 읽어 상태를 채우고, 변경 시 debounce 후 `PUT /api/vault`로 자동 저장한다.
   localStorage(`ds.*`)는 즉시 캐시 + 최초 마이그레이션 소스 + 서버 미응답 시 폴백일 뿐 원본이 아니다.
 - 기본 저장 위치는 `.day-sphere/obsidian-vault`. 실제 Obsidian Vault(Syncthing 동기화 폴더)에 직접 쓰려면
-  서버 실행 전에 `DAY_SPHERE_OBSIDIAN_DIR` 환경변수로 대상 폴더를 지정한다. 앱은 반드시 Node 서버(`next start`)로 구동.
+  서버 실행 전에 `DAY_SPHERE_OBSIDIAN_DIR` 환경변수로 기본값을 지정하거나, 앱의 Obsidian 탭에서 관리자가 저장 위치를 변경한다.
+  앱 화면에서 바꾼 저장 위치는 `.day-sphere/settings.json`에 저장되며, Docker 운영 환경에서는 `/app/.day-sphere` 안의 폴더만 선택할 수 있다.
+  앱은 반드시 Node 서버(`next start`)로 구동.
 - 파일 구조:
     Calendar/YYYY-MM-DD.md   날짜별 할 일(GFM 체크박스, `^id` 블록참조로 무손실·Obsidian 편집 양방향)
     Memos/<id>.md            메모 텍스트(+손글씨 변환 결과). frontmatter에 id/created/ink 경로
@@ -52,7 +54,9 @@
     Alarms.md                알람(frontmatter가 원본, 표는 표시용)
 - 무손실 라운드트립 + 멱등 저장(내용 동일 시 미기록)이 원칙. 충돌은 "최근 수정 우선":
   외부(Obsidian/Syncthing)에서 더 최근에 수정된 파일은 덮어쓰지 않고 충돌로 보고한 뒤 그쪽을 다시 읽어온다.
-- 핵심 파일: `src/lib/server/vault-store.ts`(읽기/쓰기), `src/app/api/vault/route.ts`(GET/PUT),
+- 핵심 파일: `src/lib/server/vault-store.ts`(읽기/쓰기), `src/lib/server/vault-settings.ts`(저장 위치 설정),
+  `src/app/api/vault/route.ts`(GET/PUT), `src/app/api/vault/settings/route.ts`(저장 위치 변경),
+  `src/app/api/vault/directories/route.ts`(폴더 탐색),
   `src/components/vault/vault-provider.tsx`(클라이언트 동기화), `src/lib/vault-types.ts`(공용 타입).
 - (구) `POST /api/obsidian/export`는 새 모델로 대체되어 UI에서 더 이상 호출하지 않는다(별도 레이아웃이라 정리 대상).
 

@@ -56,6 +56,7 @@ type VaultContextValue = {
   status: SyncStatus;
   syncNow: () => Promise<void>;
   reload: () => Promise<void>;
+  updateTargetDir: (targetDir: string) => Promise<void>;
 };
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -181,6 +182,43 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     await save();
   }, [save]);
 
+  const updateTargetDir = useCallback(
+    async (targetDir: string) => {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      writeCache(stateRef.current);
+      setStatus((s) => ({ ...s, saving: true, error: null }));
+      try {
+        const res = await fetch("/api/vault/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ targetDir }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error ?? "저장 위치 변경 실패");
+        baseSyncedAtRef.current = 0;
+        setStatus((s) => ({
+          ...s,
+          saving: false,
+          error: null,
+          targetDir: json.targetDir ?? targetDir,
+        }));
+        await reload();
+      } catch (error) {
+        const message = (error as Error).message;
+        setStatus((s) => ({
+          ...s,
+          saving: false,
+          error: message,
+        }));
+        throw error;
+      }
+    },
+    [reload],
+  );
+
   // 최초 1회 로드
   useEffect(() => {
     void reload();
@@ -211,6 +249,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         status,
         syncNow,
         reload,
+        updateTargetDir,
       }}
     >
       {children}
