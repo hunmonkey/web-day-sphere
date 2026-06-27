@@ -44,7 +44,8 @@
   localStorage(`ds.*`)는 즉시 캐시 + 최초 마이그레이션 소스 + 서버 미응답 시 폴백일 뿐 원본이 아니다.
 - 기본 저장 위치는 `.day-sphere/obsidian-vault`. 실제 Obsidian Vault(Syncthing 동기화 폴더)에 직접 쓰려면
   서버 실행 전에 `DAY_SPHERE_OBSIDIAN_DIR` 환경변수로 기본값을 지정하거나, 앱의 Obsidian 탭에서 관리자가 저장 위치를 변경한다.
-  앱 화면에서 바꾼 저장 위치는 `.day-sphere/settings.json`에 저장되며, Docker 운영 환경에서는 `/app/.day-sphere` 안의 폴더만 선택할 수 있다.
+  앱 화면에서 바꾼 저장 위치는 `.day-sphere/settings.json`에 저장된다. 폴더 탐색·선택의 허용 루트는 `DAY_SPHERE_BROWSE_ROOT`로 정하며(기본값은 `.day-sphere`),
+  운영 환경에서는 `/mnt/appdata`로 설정해 appdata 하위 폴더(예: `obsidian-box`)를 직접 고를 수 있게 한다. 이때 운영 compose에서 `/mnt/user/appdata`를 컨테이너 `/mnt/appdata`로 마운트해야 한다.
   앱은 반드시 Node 서버(`next start`)로 구동.
 - 파일 구조:
     Calendar/YYYY-MM-DD.md   날짜별 할 일(GFM 체크박스, `^id` 블록참조로 무손실·Obsidian 편집 양방향)

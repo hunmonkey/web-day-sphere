@@ -35,6 +35,12 @@ function defaultVaultRoot() {
   );
 }
 
+// 폴더 탐색·저장 위치 선택의 허용 루트.
+// 기본은 데이터 폴더(.day-sphere)이지만, DAY_SPHERE_BROWSE_ROOT로 더 넓게(예: /mnt/appdata) 열 수 있다.
+function browseRoot() {
+  return path.resolve(process.env.DAY_SPHERE_BROWSE_ROOT ?? dataDir());
+}
+
 async function readSettings(): Promise<AppSettings> {
   try {
     const raw = await readFile(settingsFile(), "utf8");
@@ -54,11 +60,11 @@ async function writeSettings(settings: AppSettings) {
   await rename(tmp, target);
 }
 
-function ensureInsideDataDir(input: string) {
+function ensureInsideBrowseRoot(input: string) {
   const trimmed = input.trim();
   if (!trimmed) throw new Error("저장 위치를 입력해 주세요.");
 
-  const root = path.resolve(dataDir());
+  const root = browseRoot();
   const resolved = path.isAbsolute(trimmed)
     ? path.resolve(trimmed)
     : path.resolve(root, trimmed);
@@ -84,7 +90,7 @@ export async function getVaultSettings() {
 }
 
 export async function setVaultRoot(input: string) {
-  const targetDir = ensureInsideDataDir(input);
+  const targetDir = ensureInsideBrowseRoot(input);
   await mkdir(targetDir, { recursive: true });
   await access(targetDir, constants.W_OK);
   const settings = await readSettings();
@@ -93,12 +99,20 @@ export async function setVaultRoot(input: string) {
 }
 
 export async function listVaultDirectories(input?: string) {
-  const root = path.resolve(dataDir());
+  const root = browseRoot();
   await mkdir(root, { recursive: true });
 
-  const target = input ? ensureInsideDataDir(input) : root;
-  const info = await stat(target);
-  if (!info.isDirectory()) throw new Error("폴더만 선택할 수 있습니다.");
+  // 입력 경로가 허용 루트 밖이거나 존재하지 않으면 조용히 루트에서 다시 시작한다.
+  let target = root;
+  if (input) {
+    try {
+      const resolved = ensureInsideBrowseRoot(input);
+      const info = await stat(resolved);
+      if (info.isDirectory()) target = resolved;
+    } catch {
+      target = root;
+    }
+  }
 
   const entries = await readdir(target, { withFileTypes: true });
   const directories: DirectoryEntry[] = entries

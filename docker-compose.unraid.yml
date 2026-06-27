@@ -15,8 +15,12 @@ services:
       HOSTNAME: "0.0.0.0"
       DAY_SPHERE_DATA_DIR: /app/.day-sphere
       DAY_SPHERE_OBSIDIAN_DIR: /app/.day-sphere/obsidian-vault
+      # 저장 폴더 선택(탐색) 허용 루트. appdata 전체를 열어 Obsidian-Box 등을 고를 수 있게 한다.
+      DAY_SPHERE_BROWSE_ROOT: /mnt/appdata
     volumes:
       - /mnt/user/appdata/Web-Day-Sphere/data:/app/.day-sphere
+      # appdata 전체를 컨테이너에 연결(읽기/쓰기). /mnt/appdata/Obsidian-Box 가 보이게 된다.
+      - /mnt/user/appdata:/mnt/appdata
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null 2>&1 || exit 1"]
       interval: 30s
