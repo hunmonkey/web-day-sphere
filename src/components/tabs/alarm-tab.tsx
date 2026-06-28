@@ -8,12 +8,15 @@ import {
   type FormEvent,
   type SetStateAction,
 } from "react";
+import { AlarmSlot } from "@/components/alarm/alarm-slot";
 import { fmtAt, nextUpcoming, nowHHMMSS, type Alarm } from "@/lib/alarm";
 
 type Props = {
   alarms: Alarm[];
   setAlarms: Dispatch<SetStateAction<Alarm[]>>;
 };
+
+const SLOT_COUNT = 5;
 
 const QUICK: { label: string; seconds: number }[][] = [
   [
@@ -45,9 +48,17 @@ function normalizeTime(value: string) {
   return value.length === 5 ? `${value}:00` : value;
 }
 
+type Slot = { value: string; alarmId: string | null };
+
 export function AlarmTab({ alarms, setAlarms }: Props) {
   const [time, setTime] = useState("");
   const [now, setNow] = useState<string | null>(null); // HH:MM:SS
+  const [slots, setSlots] = useState<Slot[]>(() =>
+    Array.from({ length: SLOT_COUNT }, () => ({
+      value: "00:00:00",
+      alarmId: null,
+    })),
+  );
 
   useEffect(() => {
     const tick = () => setNow(nowHHMMSS());
@@ -55,6 +66,8 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  const alarmIds = new Set(alarms.map((a) => a.id));
 
   function addAt(at: string) {
     setAlarms((prev) => [...prev, { id: crypto.randomUUID(), at, on: true }]);
@@ -79,6 +92,28 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
     setAlarms((prev) => prev.filter((a) => a.id !== id));
   }
 
+  // 좌측 다이얼 슬롯 ──────────────────────────────────────────
+  function changeSlot(i: number, value: string) {
+    setSlots((prev) => prev.map((s, idx) => (idx === i ? { ...s, value } : s)));
+  }
+
+  function registerSlot(i: number) {
+    const id = crypto.randomUUID();
+    const at = slots[i].value;
+    setAlarms((prev) => [...prev, { id, at, on: true }]);
+    setSlots((prev) => prev.map((s, idx) => (idx === i ? { ...s, alarmId: id } : s)));
+  }
+
+  function resetSlot(i: number) {
+    const aid = slots[i].alarmId;
+    if (aid) setAlarms((prev) => prev.filter((a) => a.id !== aid));
+    setSlots((prev) =>
+      prev.map((s, idx) =>
+        idx === i ? { value: "00:00:00", alarmId: null } : s,
+      ),
+    );
+  }
+
   const sorted = [...alarms].sort((a, b) => a.at.localeCompare(b.at));
   const onCount = sorted.filter((a) => a.on).length;
   const next = now
@@ -93,8 +128,23 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
     : "--시 --분 --초";
 
   return (
-    <div className="flex h-full justify-center">
-      <section className="glass flex h-full w-full max-w-xl flex-col rounded-3xl p-6">
+    <div className="grid h-full min-h-0 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
+      {/* 좌: 다이얼 알람 박스 5개 */}
+      <section className="glass flex min-h-0 flex-col gap-2 rounded-3xl p-4 lg:h-full">
+        {slots.map((s, i) => (
+          <AlarmSlot
+            key={i}
+            value={s.value}
+            registered={!!s.alarmId && alarmIds.has(s.alarmId)}
+            onChange={(v) => changeSlot(i, v)}
+            onRegister={() => registerSlot(i)}
+            onReset={() => resetSlot(i)}
+          />
+        ))}
+      </section>
+
+      {/* 우: 기존 알람 카드 (다음 알람 / 입력 / 빠른 추가 / 목록) */}
+      <section className="glass flex min-h-0 flex-col rounded-3xl p-6 lg:h-full">
         <div className="flex shrink-0 items-center justify-between">
           <h2 className="text-base font-semibold text-fg">알람</h2>
           <span

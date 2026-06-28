@@ -20,7 +20,7 @@ export const TAB_IDS: TabId[] = ["planner", "memo", "alarm", "settings"];
 export const DEVICE_KINDS: DeviceKind[] = ["mobile", "tablet", "desktop"];
 
 export const TAB_LABELS: Record<TabId, string> = {
-  planner: "할 일 · 캘린더",
+  planner: "플래너",
   memo: "메모",
   alarm: "알람",
   settings: "설정",

@@ -13,7 +13,7 @@ import type { AuthUser } from "@/lib/auth-types";
 import type { DevicePrefs, TabId } from "@/lib/device-prefs";
 
 const TABS: { id: TabId; label: string; short: string }[] = [
-  { id: "planner", label: "할 일 · 캘린더", short: "할 일" },
+  { id: "planner", label: "플래너", short: "플래너" },
   { id: "memo", label: "메모", short: "메모" },
   { id: "alarm", label: "알람", short: "알람" },
   { id: "settings", label: "설정", short: "설정" },
@@ -110,11 +110,32 @@ export function AppShell({
         </div>
       )}
 
-      {/* 헤더 */}
-      <header className="mb-4 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* 헤더 + 탭바 (한 줄 통합: 날짜·시각 | 탭 | 사용자 | 로그아웃) */}
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
         <Greeting />
-        <div className="flex shrink-0 items-center gap-2 text-sm">
-          <span className="max-w-[180px] truncate rounded-full border border-border bg-surface-strong px-3 py-1.5 text-muted">
+        <nav
+          role="tablist"
+          aria-label="화면 전환"
+          className="order-last flex w-full min-w-0 flex-1 gap-1 rounded-2xl glass p-1 sm:order-none sm:w-auto"
+        >
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={`min-w-0 flex-1 truncate rounded-xl px-2 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
+                tab === t.id
+                  ? "bg-accent text-accent-fg"
+                  : "text-muted hover:bg-surface-strong hover:text-fg"
+              }`}
+            >
+              {deviceKind === "mobile" ? t.short : t.label}
+            </button>
+          ))}
+        </nav>
+        <div className="ml-auto flex shrink-0 items-center gap-2 text-sm">
+          <span className="max-w-[140px] truncate rounded-full border border-border bg-surface-strong px-3 py-1.5 text-muted">
             {currentUser.name}
           </span>
           <button
@@ -125,30 +146,7 @@ export function AppShell({
             로그아웃
           </button>
         </div>
-      </header>
-
-      {/* 탭바 */}
-      <nav
-        role="tablist"
-        aria-label="화면 전환"
-        className="mb-4 flex shrink-0 gap-1 rounded-2xl glass p-1"
-      >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`min-w-0 flex-1 truncate rounded-xl px-2 py-2 text-xs font-medium transition-colors sm:px-4 sm:text-sm ${
-              tab === t.id
-                ? "bg-accent text-accent-fg"
-                : "text-muted hover:bg-surface-strong hover:text-fg"
-            }`}
-          >
-            {deviceKind === "mobile" ? t.short : t.label}
-          </button>
-        ))}
-      </nav>
+      </div>
 
       {/* 본문 (남은 높이를 채움, 페이지가 아닌 패널 내부에서만 스크롤) */}
       <main className="min-h-0 flex-1 overflow-hidden">

@@ -132,11 +132,6 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
               </motion.li>
             ))}
           </AnimatePresence>
-          {memos.length === 0 && (
-            <li className="px-1 text-sm text-muted">
-              메모가 없습니다. ‘새 메모’로 추가하세요.
-            </li>
-          )}
         </ul>
       </section>
 
@@ -219,9 +214,7 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
             )}
           </>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-muted">
-            왼쪽에서 메모를 선택하거나 ‘새 메모’를 추가하세요.
-          </div>
+          <div className="flex h-full items-center justify-center" />
         )}
       </section>
     </div>
