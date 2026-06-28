@@ -1,10 +1,8 @@
-import type { InkStroke } from "@/lib/vault-types";
-import { INK_VIEWBOX_HEIGHT, INK_VIEWBOX_WIDTH, strokesToSvg } from "@/lib/ink-svg";
-
 /**
- * 손글씨 외부 내보내기 (브라우저 클라이언트, 외부 전송 없음).
- * - SVG: 벡터 그대로 다운로드(확대해도 안 깨짐).
- * - JPG: 캔버스로 래스터화해 이미지 파일로 다운로드.
+ * 그림 외부 내보내기 (브라우저 클라이언트, 외부 전송 없음).
+ *
+ * 메모 그림은 Excalidraw가 표시용 SVG 문자열을 만들어 함께 저장하므로,
+ * 내보내기는 그 SVG를 그대로(SVG) 또는 래스터화(JPG)해서 다운로드한다.
  */
 
 function downloadBlob(filename: string, blob: Blob) {
@@ -18,8 +16,7 @@ function downloadBlob(filename: string, blob: Blob) {
   URL.revokeObjectURL(url);
 }
 
-export function exportStrokesSvg(strokes: InkStroke[], filename = "손글씨.svg") {
-  const svg = strokesToSvg(strokes);
+export function downloadSvg(svg: string, filename = "그림.svg") {
   downloadBlob(filename, new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
 }
 
@@ -32,18 +29,19 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export async function exportStrokesJpg(
-  strokes: InkStroke[],
-  filename = "손글씨.jpg",
+export async function downloadSvgAsJpg(
+  svg: string,
+  filename = "그림.jpg",
   scale = 2,
 ) {
-  const svg = strokesToSvg(strokes);
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
   try {
     const img = await loadImage(url);
+    const w = img.naturalWidth || img.width || 1000;
+    const h = img.naturalHeight || img.height || 600;
     const canvas = document.createElement("canvas");
-    canvas.width = INK_VIEWBOX_WIDTH * scale;
-    canvas.height = INK_VIEWBOX_HEIGHT * scale;
+    canvas.width = w * scale;
+    canvas.height = h * scale;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("캔버스를 사용할 수 없습니다.");
     ctx.fillStyle = "#ffffff";

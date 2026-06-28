@@ -1,11 +1,25 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
-import { InkCanvas, type InkStroke } from "@/components/memo/ink-canvas";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
 import { useVault } from "@/components/vault/vault-provider";
-import { exportStrokesJpg, exportStrokesSvg } from "@/lib/export-image";
+import { downloadSvg, downloadSvgAsJpg } from "@/lib/export-image";
 import type { DeviceKind } from "@/lib/device-prefs";
+import type { ExcalidrawScene, Memo } from "@/lib/vault-types";
+
+// 그림판(Excalidraw)은 SSR 불가 + 무거우므로, 그림 모드 진입 시에만 클라이언트에서 로드.
+const DrawCanvas = dynamic(
+  () => import("@/components/memo/draw-canvas").then((m) => m.DrawCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border text-sm text-muted">
+        그림판 불러오는 중…
+      </div>
+    ),
+  },
+);
 
 const panel = "glass rounded-3xl p-5 min-h-0";
 
@@ -15,35 +29,38 @@ function preview(text: string) {
   return first || "빈 메모";
 }
 
+function hasDrawing(m: Memo) {
+  return (m.scene?.elements?.length ?? 0) > 0 || (m.ink?.length ?? 0) > 0;
+}
+
 export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
   const { memos, setMemos } = useVault();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"text" | "ink">("text");
-
-  // 타블렛(S펜 메모)에서는 목록 칸을 좁히고 편집/캔버스 칸을 넓혀 작성 공간을 최대화.
-  const gridClass =
-    deviceKind === "mobile"
-      ? "grid h-full grid-cols-1 gap-4"
-      : deviceKind === "tablet"
-        ? "grid h-full grid-cols-[2.6fr_7.4fr] gap-4"
-        : deviceKind === "desktop"
-          ? "grid h-full grid-cols-[3.5fr_6.5fr] gap-4"
-          : "grid h-full grid-cols-1 gap-4 sm:grid-cols-[3.5fr_6.5fr]";
+  const [mode, setMode] = useState<"text" | "draw">("text");
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const selected = memos.find((m) => m.id === selectedId) ?? memos[0] ?? null;
+
+  // 메모를 선택하면 바로 입력할 수 있게 텍스트 모드에서 자동 포커스
+  useEffect(() => {
+    if (mode === "text" && selected) textareaRef.current?.focus();
+  }, [selected?.id, mode]);
 
   function addMemo() {
     const id = crypto.randomUUID();
     setMemos((prev) => [{ id, text: "" }, ...prev]);
     setSelectedId(id);
+    setMode("text");
   }
 
   function updateMemo(id: string, text: string) {
     setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)));
   }
 
-  function updateInk(id: string, ink: InkStroke[]) {
-    setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, ink } : m)));
+  function updateScene(id: string, scene: ExcalidrawScene, svg: string) {
+    setMemos((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, scene, svg, ink: undefined } : m)),
+    );
   }
 
   function removeMemo(id: string) {
@@ -53,6 +70,18 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
       setSelectedId(rest[0]?.id ?? null);
     }
   }
+
+  // 목록 칸을 기존의 절반 너비로 축소(요청). 모바일은 1단 유지.
+  const gridClass =
+    deviceKind === "mobile"
+      ? "grid h-full grid-cols-1 gap-4"
+      : deviceKind === "tablet"
+        ? "grid h-full grid-cols-[1.3fr_8.7fr] gap-4"
+        : deviceKind === "desktop"
+          ? "grid h-full grid-cols-[1.75fr_8.25fr] gap-4"
+          : "grid h-full grid-cols-1 gap-4 sm:grid-cols-[1.75fr_8.25fr]";
+
+  const shortId = selected?.id.slice(0, 8) ?? "memo";
 
   return (
     <div className={gridClass}>
@@ -90,7 +119,7 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
                       : "text-muted hover:bg-surface-strong hover:text-fg"
                   }`}
                 >
-                  {m.text.trim() ? preview(m.text) : (m.ink?.length ?? 0) > 0 ? "손글씨 메모" : "빈 메모"}
+                  {m.text.trim() ? preview(m.text) : hasDrawing(m) ? "그림 메모" : "빈 메모"}
                 </button>
                 <button
                   type="button"
@@ -130,28 +159,25 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("ink")}
+                  onClick={() => setMode("draw")}
                   className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                    mode === "ink"
+                    mode === "draw"
                       ? "bg-accent text-accent-fg"
                       : "text-muted hover:bg-surface-strong hover:text-fg"
                   }`}
                 >
-                  손글씨
+                  그림
                 </button>
               </div>
               <div className="flex items-center gap-1.5">
-                {mode === "ink" && (
+                {mode === "draw" && (
                   <>
                     <button
                       type="button"
                       onClick={() =>
-                        exportStrokesSvg(
-                          selected.ink ?? [],
-                          `손글씨-${selected.id.slice(0, 8)}.svg`,
-                        )
+                        selected.svg && downloadSvg(selected.svg, `그림-${shortId}.svg`)
                       }
-                      disabled={(selected.ink?.length ?? 0) === 0}
+                      disabled={!selected.svg}
                       className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       SVG
@@ -159,12 +185,10 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
                     <button
                       type="button"
                       onClick={() =>
-                        exportStrokesJpg(
-                          selected.ink ?? [],
-                          `손글씨-${selected.id.slice(0, 8)}.jpg`,
-                        )
+                        selected.svg &&
+                        void downloadSvgAsJpg(selected.svg, `그림-${shortId}.jpg`)
                       }
-                      disabled={(selected.ink?.length ?? 0) === 0}
+                      disabled={!selected.svg}
                       className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-surface-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       JPG
@@ -178,6 +202,7 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
             </div>
             {mode === "text" ? (
               <textarea
+                ref={textareaRef}
                 value={selected.text}
                 onChange={(e) => updateMemo(selected.id, e.target.value)}
                 aria-label="메모 내용"
@@ -185,18 +210,11 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
                 className="min-h-0 flex-1 resize-none rounded-xl border border-border bg-surface-strong px-3.5 py-3 text-sm leading-relaxed text-fg placeholder:text-muted"
               />
             ) : (
-              <InkCanvas
-                strokes={selected.ink ?? []}
-                onChange={(ink) => updateInk(selected.id, ink)}
-                defaultPenOnly={deviceKind === "tablet"}
-                onConvert={(text) =>
-                  updateMemo(
-                    selected.id,
-                    selected.text.trim()
-                      ? `${selected.text.trim()}\n${text}`
-                      : text,
-                  )
-                }
+              <DrawCanvas
+                key={selected.id}
+                initialScene={selected.scene}
+                legacyInk={selected.ink}
+                onChange={(scene, svg) => updateScene(selected.id, scene, svg)}
               />
             )}
           </>

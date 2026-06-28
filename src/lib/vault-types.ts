@@ -29,9 +29,24 @@ export type Task = {
   done: boolean;
 };
 
+/**
+ * Excalidraw 장면(그림). elements가 원본이며 appState/files는 일부만 보관한다.
+ * 우리 코드는 Excalidraw에 통째로 넘기고 받기만 하므로 느슨한 타입으로 둔다.
+ */
+export type ExcalidrawScene = {
+  elements: unknown[];
+  appState?: Record<string, unknown>;
+  files?: Record<string, unknown>;
+};
+
 export type Memo = {
   id: string;
   text: string;
+  /** 그림(Excalidraw). 원본 장면. */
+  scene?: ExcalidrawScene;
+  /** 표시용 SVG(클라이언트가 scene에서 생성). Obsidian 임베드/미리보기용. */
+  svg?: string;
+  /** (구) 손글씨 자유선 — 레거시 데이터 마이그레이션 소스로만 사용. */
   ink?: InkStroke[];
   created?: string; // ISO
 };

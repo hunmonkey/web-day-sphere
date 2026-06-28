@@ -98,8 +98,9 @@ export function exportMemosPdf(memos: Memo[]) {
       const text = memo.text?.trim()
         ? `<pre>${esc(memo.text.trim())}</pre>`
         : `<pre style="color:#999">(텍스트 없음)</pre>`;
-      const ink = hasInk ? strokesToSvg(memo.ink ?? []) : "";
-      return `<div class="memo"><h2>${esc(memoTitle(memo, i))}</h2>${text}${ink}</div>`;
+      // 그림: Excalidraw가 만든 표시용 SVG 우선, 없으면 (구) 손글씨를 렌더.
+      const drawing = memo.svg ? memo.svg : hasInk ? strokesToSvg(memo.ink ?? []) : "";
+      return `<div class="memo"><h2>${esc(memoTitle(memo, i))}</h2>${text}${drawing}</div>`;
     })
     .join("");
 

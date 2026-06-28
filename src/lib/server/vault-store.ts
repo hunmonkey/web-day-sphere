@@ -5,11 +5,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import matter from "gray-matter";
 import { longDate } from "@/lib/date";
-import { strokesToSvg } from "@/lib/ink-svg";
 import { getVaultRoot as getConfiguredVaultRoot } from "@/lib/server/vault-settings";
 import {
   emptyVault,
   type Alarm,
+  type ExcalidrawScene,
   type InkStroke,
   type Memo,
   type Task,
@@ -110,13 +110,19 @@ function memoText(memo: Memo) {
   return (memo.text ?? "").replace(/\r\n/g, "\n");
 }
 
+function hasScene(memo: Memo) {
+  return Array.isArray(memo.scene?.elements) && (memo.scene?.elements.length ?? 0) > 0;
+}
+
 function generateMemo(memo: Memo) {
-  const hasInk = Array.isArray(memo.ink) && memo.ink.length > 0;
+  const scene = hasScene(memo);
+  const ink = !scene && Array.isArray(memo.ink) && memo.ink.length > 0; // 레거시 손글씨
   const data: Record<string, unknown> = { id: memo.id, source: "Day Sphere" };
   if (memo.created) data.created = memo.created;
-  if (hasInk) data.ink = `${ASSETS_DIR}/${memo.id}.ink.json`;
+  if (scene) data.excalidraw = `${ASSETS_DIR}/${memo.id}.excalidraw`;
+  else if (ink) data.ink = `${ASSETS_DIR}/${memo.id}.ink.json`;
   let content = `\n${memoText(memo)}\n`;
-  if (hasInk) content += `\n![[${ASSETS_DIR}/${memo.id}.svg]]\n`;
+  if (scene || ink) content += `\n![[${ASSETS_DIR}/${memo.id}.svg]]\n`;
   return matter.stringify(content, data);
 }
 
@@ -160,22 +166,31 @@ async function parseMemoFile(root: string, fileName: string): Promise<Memo> {
     .replace(new RegExp(`!\\[\\[${ASSETS_DIR}/${id}\\.svg\\]\\]\\s*$`), "")
     .trim();
 
-  let ink: InkStroke[] | undefined;
-  if (typeof data.ink === "string") {
+  const memo: Memo = { id, text };
+  if (typeof data.created === "string") memo.created = data.created;
+
+  // 그림(Excalidraw) 우선, 없으면 (구) 손글씨를 레거시로 읽는다.
+  if (typeof data.excalidraw === "string") {
+    const sceneRaw = await readTextOrNull(root, data.excalidraw);
+    if (sceneRaw) {
+      try {
+        const parsed = JSON.parse(sceneRaw) as ExcalidrawScene;
+        if (parsed && Array.isArray(parsed.elements)) memo.scene = parsed;
+      } catch {
+        // 손상된 장면은 무시(텍스트는 보존)
+      }
+    }
+  } else if (typeof data.ink === "string") {
     const inkRaw = await readTextOrNull(root, data.ink);
     if (inkRaw) {
       try {
         const parsed = JSON.parse(inkRaw) as InkStroke[];
-        if (Array.isArray(parsed) && parsed.length > 0) ink = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) memo.ink = parsed;
       } catch {
-        // 손상된 사이드카는 무시(텍스트는 보존)
+        // 손상된 사이드카는 무시
       }
     }
   }
-
-  const memo: Memo = { id, text };
-  if (typeof data.created === "string") memo.created = data.created;
-  if (ink) memo.ink = ink;
   return memo;
 }
 
@@ -300,19 +315,29 @@ export async function writeVault(
     }
   }
 
-  // 2) 메모 → Memos/<id>.md + 손글씨 사이드카/표시용
+  // 2) 메모 → Memos/<id>.md + 그림 사이드카(.excalidraw 원본 + .svg 표시용)
   const memoIds = new Set(data.memos.map((m) => m.id));
   for (const memo of data.memos) {
     await writeIfSafe(`${MEMOS_DIR}/${memo.id}.md`, generateMemo(memo), ctx);
-    const hasInk = Array.isArray(memo.ink) && memo.ink.length > 0;
-    if (hasInk) {
+    if (hasScene(memo)) {
+      await writeIfSafe(
+        `${ASSETS_DIR}/${memo.id}.excalidraw`,
+        `${JSON.stringify(memo.scene, null, 2)}\n`,
+        ctx,
+      );
+      // 표시용 SVG는 클라이언트가 생성해 보낸 값을 그대로 기록(서버는 생성하지 않음).
+      if (memo.svg) await writeIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, memo.svg, ctx);
+      else await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
+      await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.ink.json`, ctx); // 레거시 정리
+    } else if (Array.isArray(memo.ink) && memo.ink.length > 0) {
+      // 레거시: 아직 그림으로 열지 않은 손글씨 — 기존 .ink.json/.svg를 보존
       await writeIfSafe(
         `${ASSETS_DIR}/${memo.id}.ink.json`,
         `${JSON.stringify(memo.ink, null, 2)}\n`,
         ctx,
       );
-      await writeIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, strokesToSvg(memo.ink ?? []), ctx);
     } else {
+      await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.excalidraw`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.ink.json`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
     }
@@ -321,6 +346,7 @@ export async function writeVault(
     const id = name.replace(/\.md$/i, "");
     if (!memoIds.has(id)) {
       await deleteIfSafe(`${MEMOS_DIR}/${name}`, ctx);
+      await deleteIfSafe(`${ASSETS_DIR}/${id}.excalidraw`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${id}.ink.json`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${id}.svg`, ctx);
     }
