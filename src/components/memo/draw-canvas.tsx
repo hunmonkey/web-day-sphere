@@ -55,6 +55,13 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
   } | null>(null);
   const timer = useRef<number | null>(null);
 
+  // onChange를 ref로 잡아 flush/handleChange/cleanup effect를 '안정적으로' 유지한다.
+  // (부모가 매 렌더 새 onChange를 넘겨도 flush가 재생성되지 않게 — 무한 리렌더 루프 방지)
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+
   const flush = useCallback(async () => {
     const cur = latest.current;
     if (!cur) return;
@@ -70,14 +77,14 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
     } catch {
       // SVG 생성 실패해도 장면은 저장한다.
     }
-    onChange(
+    onChangeRef.current(
       {
         elements: [...cur.elements],
         files: (cur.files as Record<string, unknown>) ?? undefined,
       },
       svg,
     );
-  }, [onChange]);
+  }, []);
 
   const handleChange = useCallback(
     (elements: readonly unknown[], appState: unknown, files: unknown) => {
