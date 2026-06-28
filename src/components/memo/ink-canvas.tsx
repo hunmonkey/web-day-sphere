@@ -11,6 +11,8 @@ type Props = {
   onChange: (strokes: InkStroke[]) => void;
   /** 손글씨를 텍스트로 변환했을 때 호출(메모 텍스트에 반영). 없으면 변환 버튼 숨김. */
   onConvert?: (text: string) => void;
+  /** S펜 전용 모드 초기값(타블렛에서 손바닥 오터치 방지용으로 기본 ON). */
+  defaultPenOnly?: boolean;
 };
 
 const VIEWBOX_WIDTH = 1000;
@@ -71,10 +73,10 @@ function renderStroke(stroke: InkStroke) {
   });
 }
 
-export function InkCanvas({ strokes, onChange, onConvert }: Props) {
+export function InkCanvas({ strokes, onChange, onConvert, defaultPenOnly = false }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [active, setActive] = useState<InkStroke | null>(null);
-  const [penOnly, setPenOnly] = useState(false);
+  const [penOnly, setPenOnly] = useState(defaultPenOnly);
   const [baseWidth, setBaseWidth] = useState(6);
   const [support, setSupport] = useState<boolean | null>(null);
   const [converting, setConverting] = useState(false);

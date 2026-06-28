@@ -5,10 +5,11 @@ import { useEffect, useState, type FormEvent } from "react";
 import { MonthCalendar } from "@/components/planner/month-calendar";
 import { useVault } from "@/components/vault/vault-provider";
 import { localDateStr, longDate } from "@/lib/date";
+import type { DeviceKind } from "@/lib/device-prefs";
 
 const panel = "glass rounded-3xl p-5 min-h-0";
 
-export function PlannerTab() {
+export function PlannerTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
   const { tasks, setTasks } = useVault();
   const [today, setToday] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -72,30 +73,80 @@ export function PlannerTab() {
     });
   }
 
+  // 모바일(오늘 중심 목록)에서 하루 단위로 날짜 이동
+  function shiftDay(delta: number) {
+    if (!selected) return;
+    const [y, m, d] = selected.split("-").map(Number);
+    setSelected(localDateStr(new Date(y, m - 1, d + delta)));
+  }
+
+  const isMobile = deviceKind === "mobile";
   const remaining = dayTasks.filter((t) => !t.done).length;
 
+  // 모바일은 캘린더 격자를 숨기고 '오늘 중심 목록'(날짜 이동 줄 + 입력 + 목록)만.
+  // 타블렛/PC는 캘린더 + 목록 2단. 기기 미확정(null)일 때는 폭 기반 폴백.
+  const containerClass = isMobile
+    ? "h-full"
+    : deviceKind
+      ? "grid h-full grid-cols-[3.5fr_6.5fr] gap-4"
+      : "grid h-full grid-cols-1 gap-4 lg:grid-cols-[3.5fr_6.5fr]";
+
   return (
-    <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[3.5fr_6.5fr]">
-      {/* 캘린더 */}
-      <section className={panel}>
-        <MonthCalendar
-          year={view.y}
-          month={view.m}
-          today={today}
-          selected={selected}
-          counts={counts}
-          onSelect={setSelected}
-          onPrev={() => shiftMonth(-1)}
-          onNext={() => shiftMonth(1)}
-        />
-      </section>
+    <div className={containerClass}>
+      {/* 캘린더 (모바일에서는 숨김) */}
+      {!isMobile && (
+        <section className={panel}>
+          <MonthCalendar
+            year={view.y}
+            month={view.m}
+            today={today}
+            selected={selected}
+            counts={counts}
+            onSelect={setSelected}
+            onPrev={() => shiftMonth(-1)}
+            onNext={() => shiftMonth(1)}
+          />
+        </section>
+      )}
 
       {/* 선택한 날의 할 일 */}
       <section className={`${panel} flex flex-col`}>
-        <div className="flex shrink-0 items-center justify-between">
-          <h3 className="text-base font-semibold text-fg">{longDate(selected)}</h3>
+        <div className="flex shrink-0 items-center gap-2">
+          {isMobile ? (
+            <div className="flex flex-1 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => shiftDay(-1)}
+                aria-label="이전 날"
+                className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-sm text-muted transition-colors hover:bg-surface-strong hover:text-fg"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                onClick={() => today && setSelected(today)}
+                title="오늘로 이동"
+                className="min-w-0 flex-1 truncate rounded-lg px-2 py-1 text-center text-base font-semibold text-fg transition-colors hover:bg-surface-strong"
+              >
+                {longDate(selected)}
+                {selected === today && (
+                  <span className="ml-1.5 text-xs font-medium text-accent">오늘</span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => shiftDay(1)}
+                aria-label="다음 날"
+                className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-sm text-muted transition-colors hover:bg-surface-strong hover:text-fg"
+              >
+                ▶
+              </button>
+            </div>
+          ) : (
+            <h3 className="flex-1 text-base font-semibold text-fg">{longDate(selected)}</h3>
+          )}
           <span
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
               remaining > 0 ? "bg-accent/15 text-accent" : "bg-neutral/15 text-neutral"
             }`}
           >

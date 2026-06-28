@@ -11,9 +11,15 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import {
+  defaultDevicePrefs,
+  normalizeDevicePrefs,
+  type DevicePrefs,
+} from "@/lib/device-prefs";
 
 type AppSettings = {
   obsidianDir?: string;
+  devicePrefs?: DevicePrefs;
 };
 
 export type DirectoryEntry = {
@@ -96,6 +102,20 @@ export async function setVaultRoot(input: string) {
   const settings = await readSettings();
   await writeSettings({ ...settings, obsidianDir: targetDir });
   return getVaultSettings();
+}
+
+export async function getDevicePrefs(): Promise<DevicePrefs> {
+  const settings = await readSettings();
+  return settings.devicePrefs
+    ? normalizeDevicePrefs(settings.devicePrefs)
+    : defaultDevicePrefs();
+}
+
+export async function setDevicePrefs(input: unknown): Promise<DevicePrefs> {
+  const devicePrefs = normalizeDevicePrefs(input);
+  const settings = await readSettings();
+  await writeSettings({ ...settings, devicePrefs });
+  return devicePrefs;
 }
 
 export async function listVaultDirectories(input?: string) {

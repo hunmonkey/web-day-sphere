@@ -3,6 +3,7 @@ import { AuthGate } from "@/components/auth/auth-gate";
 import { VaultProvider } from "@/components/vault/vault-provider";
 import { hasUsers, listUsers } from "@/lib/server/auth-store";
 import { currentUser } from "@/lib/server/auth-session";
+import { getDevicePrefs } from "@/lib/server/vault-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,14 @@ export default async function Home() {
     return <AuthGate mode={setupDone ? "login" : "setup"} />;
   }
 
-  const users = user.role === "admin" ? await listUsers() : [];
+  const [users, devicePrefs] = await Promise.all([
+    user.role === "admin" ? listUsers() : Promise.resolve([]),
+    getDevicePrefs(),
+  ]);
 
   return (
     <VaultProvider>
-      <AppShell currentUser={user} initialUsers={users} />
+      <AppShell currentUser={user} initialUsers={users} initialPrefs={devicePrefs} />
     </VaultProvider>
   );
 }

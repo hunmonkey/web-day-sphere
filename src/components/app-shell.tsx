@@ -1,22 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Greeting } from "@/components/dashboard/greeting";
 import { PlannerTab } from "@/components/tabs/planner-tab";
 import { MemoTab } from "@/components/tabs/memo-tab";
 import { AlarmTab } from "@/components/tabs/alarm-tab";
 import { SettingsTab } from "@/components/tabs/settings-tab";
 import { useVault } from "@/components/vault/vault-provider";
+import { useDeviceKind } from "@/hooks/use-device-kind";
 import { beep, fmtAt, nowHHMMSS } from "@/lib/alarm";
 import type { AuthUser } from "@/lib/auth-types";
+import type { DevicePrefs, TabId } from "@/lib/device-prefs";
 
-type TabId = "planner" | "memo" | "alarm" | "settings";
-
-const TABS: { id: TabId; label: string }[] = [
-  { id: "planner", label: "할 일 · 캘린더" },
-  { id: "memo", label: "메모" },
-  { id: "alarm", label: "알람" },
-  { id: "settings", label: "설정" },
+const TABS: { id: TabId; label: string; short: string }[] = [
+  { id: "planner", label: "할 일 · 캘린더", short: "할 일" },
+  { id: "memo", label: "메모", short: "메모" },
+  { id: "alarm", label: "알람", short: "알람" },
+  { id: "settings", label: "설정", short: "설정" },
 ];
 
 /**
@@ -27,20 +27,45 @@ const TABS: { id: TabId; label: string }[] = [
 export function AppShell({
   currentUser,
   initialUsers,
+  initialPrefs,
 }: {
   currentUser: AuthUser;
   initialUsers: AuthUser[];
+  initialPrefs: DevicePrefs;
 }) {
   const [tab, setTab] = useState<TabId>("planner");
+  const [prefs, setPrefs] = useState<DevicePrefs>(initialPrefs);
   const { alarms, setAlarms } = useVault();
+  const deviceKind = useDeviceKind();
   const [ringing, setRinging] = useState<string | null>(null);
 
   const firedAt = useRef("");
   const alarmsRef = useRef(alarms);
+  const startTabApplied = useRef(false);
 
   useEffect(() => {
     alarmsRef.current = alarms;
   }, [alarms]);
+
+  // 기기 유형이 확정되면 해당 기기의 시작 탭을 1회 적용(이후 사용자의 탭 전환은 존중).
+  useEffect(() => {
+    if (startTabApplied.current || !deviceKind) return;
+    startTabApplied.current = true;
+    setTab(prefs[deviceKind].startTab);
+  }, [deviceKind, prefs]);
+
+  const changePrefs = useCallback(async (next: DevicePrefs) => {
+    setPrefs(next);
+    const res = await fetch("/api/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ devicePrefs: next }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      throw new Error(json?.error ?? "저장에 실패했습니다.");
+    }
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -120,18 +145,24 @@ export function AppShell({
                 : "text-muted hover:bg-surface-strong hover:text-fg"
             }`}
           >
-            {t.label}
+            {deviceKind === "mobile" ? t.short : t.label}
           </button>
         ))}
       </nav>
 
       {/* 본문 (남은 높이를 채움, 페이지가 아닌 패널 내부에서만 스크롤) */}
       <main className="min-h-0 flex-1 overflow-hidden">
-        {tab === "planner" && <PlannerTab />}
-        {tab === "memo" && <MemoTab />}
+        {tab === "planner" && <PlannerTab deviceKind={deviceKind} />}
+        {tab === "memo" && <MemoTab deviceKind={deviceKind} />}
         {tab === "alarm" && <AlarmTab alarms={alarms} setAlarms={setAlarms} />}
         {tab === "settings" && (
-          <SettingsTab currentUser={currentUser} initialUsers={initialUsers} />
+          <SettingsTab
+            currentUser={currentUser}
+            initialUsers={initialUsers}
+            prefs={prefs}
+            onChangePrefs={changePrefs}
+            deviceKind={deviceKind}
+          />
         )}
       </main>
     </div>

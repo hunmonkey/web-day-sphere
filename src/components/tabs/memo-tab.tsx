@@ -5,6 +5,7 @@ import { useState } from "react";
 import { InkCanvas, type InkStroke } from "@/components/memo/ink-canvas";
 import { useVault } from "@/components/vault/vault-provider";
 import { exportStrokesJpg, exportStrokesSvg } from "@/lib/export-image";
+import type { DeviceKind } from "@/lib/device-prefs";
 
 const panel = "glass rounded-3xl p-5 min-h-0";
 
@@ -14,10 +15,20 @@ function preview(text: string) {
   return first || "빈 메모";
 }
 
-export function MemoTab() {
+export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
   const { memos, setMemos } = useVault();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"text" | "ink">("text");
+
+  // 타블렛(S펜 메모)에서는 목록 칸을 좁히고 편집/캔버스 칸을 넓혀 작성 공간을 최대화.
+  const gridClass =
+    deviceKind === "mobile"
+      ? "grid h-full grid-cols-1 gap-4"
+      : deviceKind === "tablet"
+        ? "grid h-full grid-cols-[2.6fr_7.4fr] gap-4"
+        : deviceKind === "desktop"
+          ? "grid h-full grid-cols-[3.5fr_6.5fr] gap-4"
+          : "grid h-full grid-cols-1 gap-4 sm:grid-cols-[3.5fr_6.5fr]";
 
   const selected = memos.find((m) => m.id === selectedId) ?? memos[0] ?? null;
 
@@ -44,7 +55,7 @@ export function MemoTab() {
   }
 
   return (
-    <div className="grid h-full grid-cols-1 gap-4 sm:grid-cols-[3.5fr_6.5fr]">
+    <div className={gridClass}>
       {/* 메모 목록 */}
       <section className={`${panel} flex flex-col`}>
         <div className="flex shrink-0 items-center justify-between">
@@ -177,6 +188,7 @@ export function MemoTab() {
               <InkCanvas
                 strokes={selected.ink ?? []}
                 onChange={(ink) => updateInk(selected.id, ink)}
+                defaultPenOnly={deviceKind === "tablet"}
                 onConvert={(text) =>
                   updateMemo(
                     selected.id,
