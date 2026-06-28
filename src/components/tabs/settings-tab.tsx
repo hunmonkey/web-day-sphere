@@ -5,7 +5,7 @@ import { DevicePrefsSection } from "@/components/tabs/device-prefs-section";
 import { ObsidianTab } from "@/components/tabs/obsidian-tab";
 import { UsersTab } from "@/components/tabs/users-tab";
 import type { AuthUser } from "@/lib/auth-types";
-import type { DeviceKind, DevicePrefs } from "@/lib/device-prefs";
+import type { DeviceKind, DevicePrefs, ThemeMode } from "@/lib/device-prefs";
 
 type Section = "device" | "obsidian" | "users";
 
@@ -19,12 +19,16 @@ export function SettingsTab({
   initialUsers,
   prefs,
   onChangePrefs,
+  themeMode,
+  onChangeThemeMode,
   deviceKind,
 }: {
   currentUser: AuthUser;
   initialUsers: AuthUser[];
   prefs: DevicePrefs;
   onChangePrefs: (next: DevicePrefs) => Promise<void>;
+  themeMode: ThemeMode;
+  onChangeThemeMode: (next: ThemeMode) => Promise<void>;
   deviceKind: DeviceKind | null;
 }) {
   const isAdmin = currentUser.role === "admin";
@@ -62,6 +66,8 @@ export function SettingsTab({
           <DevicePrefsSection
             prefs={prefs}
             onChange={onChangePrefs}
+            themeMode={themeMode}
+            onChangeThemeMode={onChangeThemeMode}
             deviceKind={deviceKind}
           />
         )}

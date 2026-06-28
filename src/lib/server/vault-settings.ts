@@ -13,13 +13,21 @@ import {
 import path from "node:path";
 import {
   defaultDevicePrefs,
+  normalizeThemeMode,
   normalizeDevicePrefs,
   type DevicePrefs,
+  type ThemeMode,
 } from "@/lib/device-prefs";
 
 type AppSettings = {
   obsidianDir?: string;
   devicePrefs?: DevicePrefs;
+  themeMode?: ThemeMode;
+};
+
+type AppPreferences = {
+  devicePrefs: DevicePrefs;
+  themeMode: ThemeMode;
 };
 
 export type DirectoryEntry = {
@@ -105,17 +113,41 @@ export async function setVaultRoot(input: string) {
 }
 
 export async function getDevicePrefs(): Promise<DevicePrefs> {
-  const settings = await readSettings();
-  return settings.devicePrefs
-    ? normalizeDevicePrefs(settings.devicePrefs)
-    : defaultDevicePrefs();
+  return (await getPreferences()).devicePrefs;
 }
 
 export async function setDevicePrefs(input: unknown): Promise<DevicePrefs> {
-  const devicePrefs = normalizeDevicePrefs(input);
+  return (await setPreferences({ devicePrefs: input })).devicePrefs;
+}
+
+export async function getPreferences(): Promise<AppPreferences> {
   const settings = await readSettings();
-  await writeSettings({ ...settings, devicePrefs });
-  return devicePrefs;
+  return {
+    devicePrefs: settings.devicePrefs
+      ? normalizeDevicePrefs(settings.devicePrefs)
+      : defaultDevicePrefs(),
+    themeMode: normalizeThemeMode(settings.themeMode),
+  };
+}
+
+export async function setPreferences(input: {
+  devicePrefs?: unknown;
+  themeMode?: unknown;
+}): Promise<AppPreferences> {
+  const settings = await readSettings();
+  const devicePrefs =
+    input.devicePrefs === undefined
+      ? settings.devicePrefs
+        ? normalizeDevicePrefs(settings.devicePrefs)
+        : defaultDevicePrefs()
+      : normalizeDevicePrefs(input.devicePrefs);
+  const themeMode =
+    input.themeMode === undefined
+      ? normalizeThemeMode(settings.themeMode)
+      : normalizeThemeMode(input.themeMode);
+
+  await writeSettings({ ...settings, devicePrefs, themeMode });
+  return { devicePrefs, themeMode };
 }
 
 export async function listVaultDirectories(input?: string) {

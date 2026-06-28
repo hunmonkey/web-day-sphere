@@ -6,9 +6,12 @@ import {
   DEVICE_LABELS,
   TAB_IDS,
   TAB_LABELS,
+  THEME_MODE_IDS,
+  THEME_MODE_LABELS,
   type DeviceKind,
   type DevicePrefs,
   type TabId,
+  type ThemeMode,
 } from "@/lib/device-prefs";
 
 /**
@@ -19,10 +22,14 @@ import {
 export function DevicePrefsSection({
   prefs,
   onChange,
+  themeMode,
+  onChangeThemeMode,
   deviceKind,
 }: {
   prefs: DevicePrefs;
   onChange: (next: DevicePrefs) => Promise<void>;
+  themeMode: ThemeMode;
+  onChangeThemeMode: (next: ThemeMode) => Promise<void>;
   deviceKind: DeviceKind | null;
 }) {
   const [saving, setSaving] = useState(false);
@@ -43,6 +50,20 @@ export function DevicePrefsSection({
     }
   }
 
+  async function setDefaultTheme(next: ThemeMode) {
+    if (themeMode === next) return;
+    setSaving(true);
+    setNotice(null);
+    try {
+      await onChangeThemeMode(next);
+      setNotice("저장되었습니다.");
+    } catch (error) {
+      setNotice((error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <section className="glass flex h-full flex-col rounded-3xl p-5">
       <div className="shrink-0">
@@ -53,6 +74,36 @@ export function DevicePrefsSection({
       </div>
 
       <div className="mt-4 min-h-0 flex-1 space-y-3 overflow-y-auto">
+        <div className="rounded-2xl border border-border bg-surface-strong p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-medium text-fg">기본 테마 모드</h3>
+              <p className="mt-1 text-xs text-muted">앱을 새로 열 때 적용</p>
+            </div>
+            <div className="flex gap-1.5">
+              {THEME_MODE_IDS.map((id) => {
+                const on = themeMode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => void setDefaultTheme(id)}
+                    aria-pressed={on}
+                    disabled={saving}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
+                      on
+                        ? "bg-accent text-accent-fg"
+                        : "border border-border text-muted hover:bg-surface-solid hover:text-fg"
+                    }`}
+                  >
+                    {THEME_MODE_LABELS[id]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         {DEVICE_KINDS.map((kind) => (
           <div
             key={kind}

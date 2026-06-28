@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Greeting } from "@/components/dashboard/greeting";
 import { PlannerTab } from "@/components/tabs/planner-tab";
 import { MemoTab } from "@/components/tabs/memo-tab";
@@ -11,7 +10,7 @@ import { useVault } from "@/components/vault/vault-provider";
 import { useDeviceKind } from "@/hooks/use-device-kind";
 import { beep, fmtAt, nowHHMMSS } from "@/lib/alarm";
 import type { AuthUser } from "@/lib/auth-types";
-import type { DevicePrefs, TabId } from "@/lib/device-prefs";
+import type { DevicePrefs, TabId, ThemeMode } from "@/lib/device-prefs";
 
 const TABS: { id: TabId; label: string; short: string }[] = [
   { id: "planner", label: "플래너", short: "플래너" },
@@ -29,15 +28,17 @@ export function AppShell({
   currentUser,
   initialUsers,
   initialPrefs,
+  initialThemeMode,
 }: {
   currentUser: AuthUser;
   initialUsers: AuthUser[];
   initialPrefs: DevicePrefs;
+  initialThemeMode: ThemeMode;
 }) {
   const [tab, setTab] = useState<TabId>("planner");
   const [prefs, setPrefs] = useState<DevicePrefs>(initialPrefs);
-  // 업무 모드: 화려한 효과를 빼고 여백·라운드를 줄인 집중 테마(브라우저 로컬 저장).
-  const [workMode, setWorkMode] = usePersistentState<boolean>("ds.workMode", false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(initialThemeMode);
+  const workMode = themeMode === "work";
   const { alarms, setAlarms } = useVault();
   const deviceKind = useDeviceKind();
   const [ringing, setRinging] = useState<string | null>(null);
@@ -76,6 +77,27 @@ export function AppShell({
       throw new Error(json?.error ?? "저장에 실패했습니다.");
     }
   }, []);
+
+  const changeThemeMode = useCallback(
+    async (next: ThemeMode) => {
+      if (themeMode === next) return;
+      const previous = themeMode;
+      setThemeMode(next);
+      const res = await fetch("/api/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ themeMode: next }),
+      });
+      if (!res.ok) {
+        setThemeMode(previous);
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error ?? "저장에 실패했습니다.");
+      }
+      const json = (await res.json().catch(() => null)) as { themeMode?: ThemeMode } | null;
+      if (json?.themeMode) setThemeMode(json.themeMode);
+    },
+    [themeMode],
+  );
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -147,7 +169,9 @@ export function AppShell({
         <div className="ml-auto flex shrink-0 items-center gap-2 text-sm">
           <button
             type="button"
-            onClick={() => setWorkMode((v) => !v)}
+            onClick={() => {
+              void changeThemeMode(workMode ? "normal" : "work").catch(() => undefined);
+            }}
             aria-pressed={workMode}
             title={workMode ? "기본 테마로 전환" : "업무 모드로 전환"}
             className={`rounded-full border px-3 py-1.5 transition-colors ${
@@ -182,6 +206,8 @@ export function AppShell({
             initialUsers={initialUsers}
             prefs={prefs}
             onChangePrefs={changePrefs}
+            themeMode={themeMode}
+            onChangeThemeMode={changeThemeMode}
             deviceKind={deviceKind}
           />
         )}

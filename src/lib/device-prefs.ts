@@ -1,7 +1,7 @@
 /**
  * 기기별 화면 설정(앱·서버 공용).
  *
- * 세 종류 기기(폰/타블렛/PC)마다 "앱을 켰을 때 먼저 보일 탭(시작 탭)"을 정한다.
+ * 세 종류 기기(폰/타블렛/PC)마다 "앱을 켰을 때 먼저 보일 탭(시작 탭)"과 기본 테마를 정한다.
  * 값은 서버의 `.day-sphere/settings.json`에 저장되어 모든 기기가 같은 설정을 공유한다.
  * (UI 설정이므로 Obsidian Vault(md)에는 넣지 않는다.)
  */
@@ -9,6 +9,8 @@
 export type TabId = "planner" | "memo" | "alarm" | "settings";
 
 export type DeviceKind = "mobile" | "tablet" | "desktop";
+
+export type ThemeMode = "normal" | "work";
 
 export type DevicePref = {
   startTab: TabId;
@@ -18,6 +20,7 @@ export type DevicePrefs = Record<DeviceKind, DevicePref>;
 
 export const TAB_IDS: TabId[] = ["planner", "memo", "alarm", "settings"];
 export const DEVICE_KINDS: DeviceKind[] = ["mobile", "tablet", "desktop"];
+export const THEME_MODE_IDS: ThemeMode[] = ["normal", "work"];
 
 export const TAB_LABELS: Record<TabId, string> = {
   planner: "플래너",
@@ -32,6 +35,11 @@ export const DEVICE_LABELS: Record<DeviceKind, string> = {
   desktop: "PC",
 };
 
+export const THEME_MODE_LABELS: Record<ThemeMode, string> = {
+  normal: "일반",
+  work: "업무",
+};
+
 /** 기본값: 폰=할 일, 타블렛=메모(S펜), PC=할 일 */
 export function defaultDevicePrefs(): DevicePrefs {
   return {
@@ -41,8 +49,18 @@ export function defaultDevicePrefs(): DevicePrefs {
   };
 }
 
+export function defaultThemeMode(): ThemeMode {
+  return "normal";
+}
+
 function normalizeTab(value: unknown, fallback: TabId): TabId {
   return TAB_IDS.includes(value as TabId) ? (value as TabId) : fallback;
+}
+
+export function normalizeThemeMode(value: unknown): ThemeMode {
+  return THEME_MODE_IDS.includes(value as ThemeMode)
+    ? (value as ThemeMode)
+    : defaultThemeMode();
 }
 
 /** 부분·손상 입력을 안전한 DevicePrefs로 정규화(누락 키는 기본값으로 채움). */
