@@ -114,6 +114,43 @@ body {
 }
 
 /* =========================================================
+   업무 모드 (data-theme="work")
+   목적: 화려한 효과·그래픽을 모두 빼고 성능과 작업 공간을 확보.
+   Tailwind v4의 전역 토큰(--spacing, --radius-*)만 줄여 컴포넌트는
+   건드리지 않고 일괄 적용한다. (rounded-full은 별도 값이라 영향 없음 → 알약·원형 유지)
+   unlayered 규칙이라 Tailwind theme 레이어보다 우선 적용된다.
+   ========================================================= */
+html[data-theme="work"] {
+  /* 여백·간격 최소화: 모든 p/m/gap 유틸의 기준값을 줄인다 (기본 0.25rem) */
+  --spacing: 0.18rem;
+
+  /* 사각형 라운드 최소화: 박스는 거의 각지게 (rounded-full 제외) */
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 3px;
+  --radius-2xl: 3px;
+  --radius-3xl: 4px;
+  --radius-4xl: 4px;
+}
+
+/* 배경 오로라 그라데이션 제거 → 단색 (가벼움·집중) */
+html[data-theme="work"] body {
+  background: var(--bg);
+  background-attachment: initial;
+}
+
+/* 글래스모피즘(블러·그림자) 제거 → 평평한 솔리드 패널 */
+html[data-theme="work"] .glass {
+  background: var(--surface-solid);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
+/* =========================================================
    디테일 · 접근성 (Rule_UIUX 1-4: 키보드 포커스 표시 유지)
    ========================================================= */
 ::selection {

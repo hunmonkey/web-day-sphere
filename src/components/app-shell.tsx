@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Greeting } from "@/components/dashboard/greeting";
 import { PlannerTab } from "@/components/tabs/planner-tab";
 import { MemoTab } from "@/components/tabs/memo-tab";
@@ -35,6 +36,8 @@ export function AppShell({
 }) {
   const [tab, setTab] = useState<TabId>("planner");
   const [prefs, setPrefs] = useState<DevicePrefs>(initialPrefs);
+  // 업무 모드: 화려한 효과를 빼고 여백·라운드를 줄인 집중 테마(브라우저 로컬 저장).
+  const [workMode, setWorkMode] = usePersistentState<boolean>("ds.workMode", false);
   const { alarms, setAlarms } = useVault();
   const deviceKind = useDeviceKind();
   const [ringing, setRinging] = useState<string | null>(null);
@@ -46,6 +49,13 @@ export function AppShell({
   useEffect(() => {
     alarmsRef.current = alarms;
   }, [alarms]);
+
+  // 업무 모드 on/off를 <html data-theme>에 반영(전역 CSS 토큰 오버라이드 트리거).
+  useEffect(() => {
+    const root = document.documentElement;
+    if (workMode) root.setAttribute("data-theme", "work");
+    else root.removeAttribute("data-theme");
+  }, [workMode]);
 
   // 기기 유형이 확정되면 해당 기기의 시작 탭을 1회 적용(이후 사용자의 탭 전환은 존중).
   useEffect(() => {
@@ -135,6 +145,19 @@ export function AppShell({
           ))}
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => setWorkMode((v) => !v)}
+            aria-pressed={workMode}
+            title={workMode ? "기본 테마로 전환" : "업무 모드로 전환"}
+            className={`rounded-full border px-3 py-1.5 transition-colors ${
+              workMode
+                ? "border-accent bg-accent text-accent-fg"
+                : "border-border text-muted hover:bg-surface-strong hover:text-fg"
+            }`}
+          >
+            업무 모드
+          </button>
           <span className="max-w-[140px] truncate rounded-full border border-border bg-surface-strong px-3 py-1.5 text-muted">
             {currentUser.name}
           </span>
