@@ -57,6 +57,21 @@ export function AppShell({
     else root.removeAttribute("data-theme");
   }, [workMode]);
 
+  // 홈 화면 바로가기(?compose=draw)로 진입하면 메모 탭을 열고 "바로 쓸 백지"를 요청한다.
+  // 시작 탭 자동 적용보다 우선하도록 startTabApplied를 미리 소비하고, 쿼리는 주소에서 지운다.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("compose") !== "draw") return;
+    startTabApplied.current = true;
+    sessionStorage.setItem("ds.memo.compose", "1");
+    // 진입 시 URL을 1회 읽어 탭을 정하는 동기화(연쇄 렌더 아님).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTab("memo");
+    url.searchParams.delete("compose");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
   // 기기 유형이 확정되면 해당 기기의 시작 탭을 1회 적용(이후 사용자의 탭 전환은 존중).
   useEffect(() => {
     if (startTabApplied.current || !deviceKind) return;

@@ -10,9 +10,9 @@ import {
   emptyVault,
   type Alarm,
   type AudioClip,
-  type ExcalidrawScene,
   type InkStroke,
   type Memo,
+  type PaperKind,
   type Task,
   type VaultData,
 } from "@/lib/vault-types";
@@ -170,20 +170,23 @@ function memoText(memo: Memo) {
   return (memo.text ?? "").replace(/\r\n/g, "\n");
 }
 
-function hasScene(memo: Memo) {
-  return Array.isArray(memo.scene?.elements) && (memo.scene?.elements.length ?? 0) > 0;
+function hasInk(memo: Memo) {
+  return Array.isArray(memo.ink) && memo.ink.length > 0;
+}
+
+function parsePaper(value: unknown): PaperKind | undefined {
+  return value === "lines" || value === "grid" || value === "plain" ? value : undefined;
 }
 
 function generateMemo(memo: Memo) {
-  const scene = hasScene(memo);
-  const ink = !scene && Array.isArray(memo.ink) && memo.ink.length > 0; // 레거시 손글씨
+  const ink = hasInk(memo);
   const audio = Array.isArray(memo.audio)
     ? memo.audio.filter((c) => c && typeof c.id === "string")
     : [];
   const data: Record<string, unknown> = { id: memo.id, source: "Day Sphere" };
   if (memo.created) data.created = memo.created;
-  if (scene) data.excalidraw = `${ASSETS_DIR}/${memo.id}.excalidraw`;
-  else if (ink) data.ink = `${ASSETS_DIR}/${memo.id}.ink.json`;
+  if (ink) data.ink = `${ASSETS_DIR}/${memo.id}.ink.json`;
+  if (memo.paper && memo.paper !== "plain") data.paper = memo.paper;
   if (audio.length > 0) {
     data.audio = audio.map((c) => ({
       id: c.id,
@@ -192,7 +195,7 @@ function generateMemo(memo: Memo) {
     }));
   }
   let content = `\n${memoText(memo)}\n`;
-  if (scene || ink) content += `\n![[${ASSETS_DIR}/${memo.id}.svg]]\n`;
+  if (ink) content += `\n![[${ASSETS_DIR}/${memo.id}.svg]]\n`;
   // Obsidian에서도 첨부 음성을 바로 들을 수 있게 임베드(webm 오디오 지원).
   for (const c of audio) content += `\n![[${audioRel(memo.id, c.id)}]]\n`;
   return matter.stringify(content, data);
@@ -241,6 +244,8 @@ async function parseMemoFile(root: string, fileName: string): Promise<Memo> {
 
   const memo: Memo = { id, text };
   if (typeof data.created === "string") memo.created = data.created;
+  const paper = parsePaper(data.paper);
+  if (paper) memo.paper = paper;
 
   // 첨부 음성: frontmatter의 메타데이터를 읽되, 실제 파일이 있는 클립만 살린다(끊긴 재생 방지).
   if (Array.isArray(data.audio)) {
@@ -260,18 +265,7 @@ async function parseMemoFile(root: string, fileName: string): Promise<Memo> {
     if (clips.length > 0) memo.audio = clips;
   }
 
-  // 그림(Excalidraw) 우선, 없으면 (구) 손글씨를 레거시로 읽는다.
-  if (typeof data.excalidraw === "string") {
-    const sceneRaw = await readTextOrNull(root, data.excalidraw);
-    if (sceneRaw) {
-      try {
-        const parsed = JSON.parse(sceneRaw) as ExcalidrawScene;
-        if (parsed && Array.isArray(parsed.elements)) memo.scene = parsed;
-      } catch {
-        // 손상된 장면은 무시(텍스트는 보존)
-      }
-    }
-  } else if (typeof data.ink === "string") {
+  if (typeof data.ink === "string") {
     const inkRaw = await readTextOrNull(root, data.ink);
     if (inkRaw) {
       try {
@@ -406,32 +400,23 @@ export async function writeVault(
     }
   }
 
-  // 2) 메모 → Memos/<id>.md + 그림 사이드카(.excalidraw 원본 + .svg 표시용)
+  // 2) 메모 → Memos/<id>.md + 그림 사이드카(.ink.json 원본 + .svg 표시용)
   // 오디오는 별도 엔드포인트가 디스크에 먼저 쓰므로, 여기선 메타데이터에 없는 고아 파일만 정리한다.
   // 갓 업로드된 파일은 mtime이 base보다 커서 deleteIfSafe가 건드리지 않는다(경쟁 상태 보호).
   const assetFiles = await listAssets(ctx.root);
   const memoIds = new Set(data.memos.map((m) => m.id));
   for (const memo of data.memos) {
     await writeIfSafe(`${MEMOS_DIR}/${memo.id}.md`, generateMemo(memo), ctx);
-    if (hasScene(memo)) {
-      await writeIfSafe(
-        `${ASSETS_DIR}/${memo.id}.excalidraw`,
-        `${JSON.stringify(memo.scene, null, 2)}\n`,
-        ctx,
-      );
-      // 표시용 SVG는 클라이언트가 생성해 보낸 값을 그대로 기록(서버는 생성하지 않음).
-      if (memo.svg) await writeIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, memo.svg, ctx);
-      else await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
-      await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.ink.json`, ctx); // 레거시 정리
-    } else if (Array.isArray(memo.ink) && memo.ink.length > 0) {
-      // 레거시: 아직 그림으로 열지 않은 손글씨 — 기존 .ink.json/.svg를 보존
+    if (hasInk(memo)) {
       await writeIfSafe(
         `${ASSETS_DIR}/${memo.id}.ink.json`,
         `${JSON.stringify(memo.ink, null, 2)}\n`,
         ctx,
       );
+      // 표시용 SVG는 클라이언트가 생성해 보낸 값을 그대로 기록(서버는 생성하지 않음).
+      if (memo.svg) await writeIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, memo.svg, ctx);
+      else await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
     } else {
-      await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.excalidraw`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.ink.json`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
     }
@@ -451,7 +436,6 @@ export async function writeVault(
     const id = name.replace(/\.md$/i, "");
     if (!memoIds.has(id)) {
       await deleteIfSafe(`${MEMOS_DIR}/${name}`, ctx);
-      await deleteIfSafe(`${ASSETS_DIR}/${id}.excalidraw`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${id}.ink.json`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${id}.svg`, ctx);
       const audioPrefix = `${safeId(id, "memo")}.audio-`;

@@ -7,16 +7,16 @@ import { useVault } from "@/components/vault/vault-provider";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { downloadSvg, downloadSvgAsJpg } from "@/lib/export-image";
 import type { DeviceKind } from "@/lib/device-prefs";
-import type { AudioClip, ExcalidrawScene, Memo } from "@/lib/vault-types";
+import type { AudioClip, InkStroke, Memo, PaperKind } from "@/lib/vault-types";
 
-// 그림판(Excalidraw)은 SSR 불가 + 무거우므로, 그림 모드 진입 시에만 클라이언트에서 로드.
-const DrawCanvas = dynamic(
-  () => import("@/components/memo/draw-canvas").then((m) => m.DrawCanvas),
+// 필기 캔버스는 브라우저 포인터/캔버스 API를 쓰므로 그림 모드 진입 시에만 로드.
+const InkCanvas = dynamic(
+  () => import("@/components/memo/ink-canvas").then((m) => m.InkCanvas),
   {
     ssr: false,
     loading: () => (
       <div className="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border text-sm text-muted">
-        그림판 불러오는 중…
+        필기장 불러오는 중…
       </div>
     ),
   },
@@ -31,7 +31,7 @@ function preview(text: string) {
 }
 
 function hasDrawing(m: Memo) {
-  return (m.scene?.elements?.length ?? 0) > 0 || (m.ink?.length ?? 0) > 0;
+  return (m.ink?.length ?? 0) > 0;
 }
 
 /** ms → m:ss */
@@ -46,7 +46,7 @@ function clipSrc(memoId: string, clipId: string) {
 }
 
 export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
-  const { memos, setMemos } = useVault();
+  const { memos, setMemos, status } = useVault();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<"text" | "draw">("draw");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -57,6 +57,8 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
   const [clipsOpen, setClipsOpen] = useState(false);
   // 녹음 시작 시점의 메모에 붙도록 id를 고정(녹음 중 메모를 바꿔도 어긋나지 않게)
   const recordingMemoRef = useRef<string | null>(null);
+  // 앱 세션당 1회만 "바로 쓸 백지"를 준비했는지(중복 생성 방지).
+  const blankComposedRef = useRef(false);
 
   const selected = memos.find((m) => m.id === selectedId) ?? memos[0] ?? null;
   const selectedMemoId = selected?.id;
@@ -71,6 +73,39 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
     if (recorder.error) window.alert(recorder.error);
   }, [recorder.error]);
 
+  // 진입 즉시 필기: Vault 로딩이 끝난 뒤, 타블렛 콜드 스타트(또는 홈 바로가기 요청) 시
+  // "바로 쓸 백지"를 준비한다. 최신 메모가 이미 비어 있으면 그걸 재사용(빈 메모 양산 방지).
+  // 외부 상태(서버 Vault·세션 플래그)를 1회 읽어 초기 메모를 정하는 동기화(ref 가드로 1회만 실행).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (blankComposedRef.current || !status.loaded) return;
+    const forced =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("ds.memo.compose") === "1";
+    const tabletCold =
+      deviceKind === "tablet" &&
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("ds.memo.cold") !== "1";
+    if (!forced && !tabletCold) return;
+    blankComposedRef.current = true;
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("ds.memo.compose");
+      sessionStorage.setItem("ds.memo.cold", "1");
+    }
+    const newest = memos[0];
+    const blank =
+      !!newest && !newest.text.trim() && (newest.ink?.length ?? 0) === 0;
+    if (blank) {
+      setSelectedId(newest.id);
+    } else {
+      const id = crypto.randomUUID();
+      setMemos((prev) => [{ id, text: "" }, ...prev]);
+      setSelectedId(id);
+    }
+    setMode("draw");
+  }, [status.loaded, deviceKind, memos, setMemos]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   function addMemo() {
     const id = crypto.randomUUID();
     setMemos((prev) => [{ id, text: "" }, ...prev]);
@@ -82,9 +117,9 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
     setMemos((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)));
   }
 
-  function updateScene(id: string, scene: ExcalidrawScene, svg: string) {
+  function updateInk(id: string, ink: InkStroke[], svg: string, paper: PaperKind) {
     setMemos((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, scene, svg, ink: undefined } : m)),
+      prev.map((m) => (m.id === id ? { ...m, ink, svg, paper } : m)),
     );
   }
 
@@ -372,11 +407,12 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
                 className="min-h-0 flex-1 resize-none rounded-xl border border-border bg-surface-strong px-3.5 py-3 text-sm leading-relaxed text-fg placeholder:text-muted"
               />
             ) : (
-              <DrawCanvas
+              <InkCanvas
                 key={selected.id}
-                initialScene={selected.scene}
-                legacyInk={selected.ink}
-                onChange={(scene, svg) => updateScene(selected.id, scene, svg)}
+                initialInk={selected.ink}
+                initialPaper={selected.paper}
+                deviceKind={deviceKind}
+                onChange={(ink, svg, paper) => updateInk(selected.id, ink, svg, paper)}
               />
             )}
           </>

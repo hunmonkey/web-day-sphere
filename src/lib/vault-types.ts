@@ -18,8 +18,14 @@ export type InkStroke = {
   color: string;
   baseWidth: number;
   input: string;
+  opacity?: number;
+  tool?: InkTool;
   points: InkPoint[];
 };
+
+export type InkTool = "pen" | "pencil" | "fountain" | "highlighter";
+
+export type PaperKind = "plain" | "lines" | "grid";
 
 export type Task = {
   id: string;
@@ -27,16 +33,6 @@ export type Task = {
   time: string; // "" 또는 HH:MM
   title: string;
   done: boolean;
-};
-
-/**
- * Excalidraw 장면(그림). elements가 원본이며 appState/files는 일부만 보관한다.
- * 우리 코드는 Excalidraw에 통째로 넘기고 받기만 하므로 느슨한 타입으로 둔다.
- */
-export type ExcalidrawScene = {
-  elements: unknown[];
-  appState?: Record<string, unknown>;
-  files?: Record<string, unknown>;
 };
 
 /**
@@ -55,12 +51,12 @@ export type AudioClip = {
 export type Memo = {
   id: string;
   text: string;
-  /** 그림(Excalidraw). 원본 장면. */
-  scene?: ExcalidrawScene;
-  /** 표시용 SVG(클라이언트가 scene에서 생성). Obsidian 임베드/미리보기용. */
-  svg?: string;
-  /** (구) 손글씨 자유선 — 레거시 데이터 마이그레이션 소스로만 사용. */
+  /** 필기 원본 획. */
   ink?: InkStroke[];
+  /** 종이 배경. */
+  paper?: PaperKind;
+  /** 표시용 SVG(클라이언트가 ink에서 생성). Obsidian 임베드/미리보기용. */
+  svg?: string;
   /** 첨부된 음성 녹음(있을 때만). */
   audio?: AudioClip[];
   created?: string; // ISO
