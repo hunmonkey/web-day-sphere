@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Day Sphere maskable compass mark</title>
+  <desc id="desc">A mask-safe Android icon for Day Sphere.</desc>
+  <defs>
+    <linearGradient id="daySphereInk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17263f"/>
+      <stop offset="1" stop-color="#248b86"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#daySphereInk)"/>
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#ffffff" stroke-width="25" opacity="0.96"/>
+  <path d="M256 140v48M256 324v48M140 256h48M324 256h48" fill="none" stroke="#87f0d5" stroke-width="22" stroke-linecap="round"/>
+  <path d="M360 152L286 286 226 226Z" fill="#ffffff"/>
+  <path d="M152 360L226 226 286 286Z" fill="#87f0d5" opacity="0.56"/>
+  <circle cx="256" cy="256" r="27" fill="#87f0d5"/>
+  <circle cx="256" cy="256" r="10" fill="#ffffff" opacity="0.92"/>
+</svg>

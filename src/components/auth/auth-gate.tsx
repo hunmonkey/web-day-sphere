@@ -36,8 +36,15 @@ export function AuthGate() {
     <main className="flex h-full items-center justify-center overflow-hidden px-5 py-6">
       <section className="glass flex w-full max-w-sm flex-col rounded-3xl p-6 shadow-2xl">
         <div className="mb-6">
-          <p className="text-sm font-medium text-accent">Day Sphere</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="h-12 w-12 rounded-2xl shadow-lg"
+              style={{ background: "center / cover no-repeat url('/brand/day-sphere-mark.svg')" }}
+            />
+            <p className="text-sm font-medium text-accent">Day Sphere</p>
+          </div>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-fg">
             PIN 로그인
           </h1>
         </div>
