@@ -26,15 +26,14 @@ const TABS: { id: TabId; label: string; short: string }[] = [
  */
 export function AppShell({
   currentUser,
-  initialUsers,
   initialPrefs,
   initialThemeMode,
 }: {
   currentUser: AuthUser;
-  initialUsers: AuthUser[];
   initialPrefs: DevicePrefs;
   initialThemeMode: ThemeMode;
 }) {
+  const [account, setAccount] = useState<AuthUser>(currentUser);
   const [tab, setTab] = useState<TabId>("planner");
   const [prefs, setPrefs] = useState<DevicePrefs>(initialPrefs);
   const [themeMode, setThemeMode] = useState<ThemeMode>(initialThemeMode);
@@ -183,7 +182,7 @@ export function AppShell({
             업무 모드
           </button>
           <span className="max-w-[140px] truncate rounded-full border border-border bg-surface-strong px-3 py-1.5 text-muted">
-            {currentUser.name}
+            {account.name}
           </span>
           <button
             type="button"
@@ -202,8 +201,8 @@ export function AppShell({
         {tab === "alarm" && <AlarmTab alarms={alarms} setAlarms={setAlarms} />}
         {tab === "settings" && (
           <SettingsTab
-            currentUser={currentUser}
-            initialUsers={initialUsers}
+            currentUser={account}
+            onUserChange={setAccount}
             prefs={prefs}
             onChangePrefs={changePrefs}
             themeMode={themeMode}

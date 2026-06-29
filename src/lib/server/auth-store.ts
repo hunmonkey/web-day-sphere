@@ -39,6 +39,9 @@ const DATA_DIR =
   process.env.DAY_SPHERE_DATA_DIR ?? path.join(process.cwd(), ".day-sphere");
 const DB_FILE = path.join(DATA_DIR, "auth.json");
 const SESSION_DAYS = 7;
+const DEFAULT_PIN = "0806";
+const DEFAULT_ADMIN_NAME = "황재훈";
+const DEFAULT_ADMIN_EMAIL = "hunmonkey1@gmail.com";
 
 function emptyDb(): AuthDb {
   return { users: [], sessions: [] };
@@ -82,9 +85,9 @@ function passwordMatches(password: string, user: StoredUser) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function assertPassword(password: string) {
+function assertPin(password: string) {
   if (!/^\d{4}$/.test(password)) {
-    throw new Error("비밀번호는 숫자 4자리여야 합니다.");
+    throw new Error("PIN은 숫자 4자리여야 합니다.");
   }
 }
 
@@ -119,38 +122,12 @@ function assertUniqueEmail(db: AuthDb, email: string, exceptId?: string) {
   if (exists) throw new Error("이미 등록된 이메일입니다.");
 }
 
-function assertActiveAdminRemains(db: AuthDb) {
-  const count = db.users.filter((u) => u.role === "admin" && u.active).length;
-  if (count < 1) throw new Error("활성 관리자 계정은 최소 1개 필요합니다.");
-}
-
-export async function hasUsers() {
-  const db = await readDb();
-  return db.users.length > 0;
-}
-
-export async function listUsers() {
-  const db = await readDb();
-  return db.users.map(safeUser);
-}
-
-export async function createInitialAdmin(input: Omit<NewUserInput, "role">) {
-  const db = await readDb();
-  if (db.users.length > 0) throw new Error("초기 설정은 이미 완료되었습니다.");
-  return createUserInternal(db, { ...input, role: "admin" });
-}
-
-export async function createUser(input: NewUserInput) {
-  const db = await readDb();
-  return createUserInternal(db, input);
-}
-
 async function createUserInternal(db: AuthDb, input: NewUserInput) {
   const email = normalizeEmail(input.email);
   const name = input.name.trim();
   if (!email) throw new Error("이메일을 입력해 주세요.");
   if (!name) throw new Error("이름을 입력해 주세요.");
-  assertPassword(input.password);
+  assertPin(input.password);
   assertUniqueEmail(db, email);
 
   const now = nowIso();
@@ -171,12 +148,20 @@ async function createUserInternal(db: AuthDb, input: NewUserInput) {
   return safeUser(user);
 }
 
-export async function login(emailInput: string, password: string) {
-  const email = normalizeEmail(emailInput);
+export async function loginWithPin(pin: string) {
   const db = await readDb();
+  if (db.users.length === 0) {
+    await createUserInternal(db, {
+      name: DEFAULT_ADMIN_NAME,
+      email: DEFAULT_ADMIN_EMAIL,
+      password: DEFAULT_PIN,
+      role: "admin",
+    });
+  }
+
   removeExpiredSessions(db);
-  const user = db.users.find((u) => u.email === email);
-  if (!user || !user.active || !passwordMatches(password, user)) {
+  const user = db.users.find((u) => u.active && passwordMatches(pin, u));
+  if (!user) {
     await writeDb(db);
     return null;
   }
@@ -216,7 +201,7 @@ export async function logout(token?: string | null) {
 
 export async function updateUser(
   id: string,
-  patch: Partial<Pick<AuthUser, "email" | "name" | "role" | "active">>,
+  patch: Partial<Pick<AuthUser, "email" | "name">>,
 ) {
   const db = await readDb();
   const user = db.users.find((u) => u.id === id);
@@ -233,17 +218,18 @@ export async function updateUser(
     if (!name) throw new Error("이름을 입력해 주세요.");
     user.name = name;
   }
-  if (patch.role !== undefined) user.role = patch.role;
-  if (patch.active !== undefined) user.active = patch.active;
   user.updatedAt = nowIso();
 
-  assertActiveAdminRemains(db);
   await writeDb(db);
   return safeUser(user);
 }
 
-export async function resetPassword(id: string, password: string) {
-  assertPassword(password);
+export async function resetPassword(
+  id: string,
+  password: string,
+  options: { keepSessions?: boolean } = {},
+) {
+  assertPin(password);
   const db = await readDb();
   const user = db.users.find((u) => u.id === id);
   if (!user) throw new Error("사용자를 찾을 수 없습니다.");
@@ -251,19 +237,11 @@ export async function resetPassword(id: string, password: string) {
   user.salt = salt;
   user.passwordHash = passwordHash;
   user.updatedAt = nowIso();
-  db.sessions = db.sessions.filter((s) => s.userId !== id);
+  if (!options.keepSessions) {
+    db.sessions = db.sessions.filter((s) => s.userId !== id);
+  }
   await writeDb(db);
   return safeUser(user);
-}
-
-export async function deleteUser(id: string) {
-  const db = await readDb();
-  const exists = db.users.some((u) => u.id === id);
-  if (!exists) throw new Error("사용자를 찾을 수 없습니다.");
-  db.users = db.users.filter((u) => u.id !== id);
-  db.sessions = db.sessions.filter((s) => s.userId !== id);
-  assertActiveAdminRemains(db);
-  await writeDb(db);
 }
 
 export { SESSION_DAYS };

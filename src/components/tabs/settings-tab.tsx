@@ -7,16 +7,15 @@ import { UsersTab } from "@/components/tabs/users-tab";
 import type { AuthUser } from "@/lib/auth-types";
 import type { DeviceKind, DevicePrefs, ThemeMode } from "@/lib/device-prefs";
 
-type Section = "device" | "obsidian" | "users";
+type Section = "device" | "obsidian" | "account";
 
 /**
- * 설정 탭: 화면/기기 + Obsidian 동기화 + 사용자 관리를 하나로 묶는다.
+ * 설정 탭: 화면/기기 + Obsidian 동기화 + 계정 설정을 하나로 묶는다.
  * 한 화면 고정 규칙을 지키기 위해 내용을 쌓지 않고 하위 탭으로 전환한다.
- * 사용자 관리는 관리자 전용이라, 일반 사용자에게는 그 하위 탭을 숨긴다.
  */
 export function SettingsTab({
   currentUser,
-  initialUsers,
+  onUserChange,
   prefs,
   onChangePrefs,
   themeMode,
@@ -24,7 +23,7 @@ export function SettingsTab({
   deviceKind,
 }: {
   currentUser: AuthUser;
-  initialUsers: AuthUser[];
+  onUserChange: (user: AuthUser) => void;
   prefs: DevicePrefs;
   onChangePrefs: (next: DevicePrefs) => Promise<void>;
   themeMode: ThemeMode;
@@ -33,12 +32,12 @@ export function SettingsTab({
 }) {
   const isAdmin = currentUser.role === "admin";
   const [section, setSection] = useState<Section>("device");
-  const active: Section = section === "users" && !isAdmin ? "device" : section;
+  const active = section;
 
   const sub: { id: Section; label: string }[] = [
     { id: "device", label: "화면/기기" },
     { id: "obsidian", label: "Obsidian 동기화" },
-    ...(isAdmin ? [{ id: "users" as const, label: "사용자 관리" }] : []),
+    { id: "account", label: "계정" },
   ];
 
   return (
@@ -72,8 +71,8 @@ export function SettingsTab({
           />
         )}
         {active === "obsidian" && <ObsidianTab canManageVault={isAdmin} />}
-        {active === "users" && isAdmin && (
-          <UsersTab currentUser={currentUser} initialUsers={initialUsers} />
+        {active === "account" && (
+          <UsersTab currentUser={currentUser} onUserChange={onUserChange} />
         )}
       </div>
     </div>
