@@ -38,6 +38,13 @@ type ExcalidrawApi = {
     elements?: readonly unknown[];
     appState?: Record<string, unknown>;
   }) => void;
+  getAppState: () => {
+    zoom: { value: number };
+    scrollX: number;
+    scrollY: number;
+    offsetLeft: number;
+    offsetTop: number;
+  };
 };
 
 type DrawTool =
@@ -48,7 +55,8 @@ type DrawTool =
   | "line"
   | "arrow"
   | "eraser"
-  | "select";
+  | "select"
+  | "hand";
 
 type StrokeStyle = "solid" | "dashed" | "dotted";
 
@@ -71,6 +79,7 @@ const TOOL_TYPE: Record<DrawTool, string> = {
   arrow: "arrow",
   eraser: "eraser",
   select: "selection",
+  hand: "hand",
 };
 
 export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
@@ -91,6 +100,8 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
       typeof window !== "undefined" &&
       localStorage.getItem("ds.draw.penOnly") === "1",
   );
+  // 도구 잠금: 켜면 그리기 도구가 한 획 뒤에도 유지된다(연속 필기). 끄면 한 번 쓰고 선택으로 복귀.
+  const [lockTool, setLockTool] = useState(true);
 
   const shellRef = useRef<HTMLDivElement | null>(null);
 
@@ -177,8 +188,9 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
   useEffect(() => {
     if (!api) return;
     const isMarker = tool === "marker";
-    const locked = tool !== "select" && tool !== "eraser";
-    api.setActiveTool({ type: TOOL_TYPE[tool], locked });
+    const drawing =
+      tool === "pen" || tool === "marker" || SHAPE_TOOLS.includes(tool);
+    api.setActiveTool({ type: TOOL_TYPE[tool], locked: lockTool && drawing });
     api.updateScene({
       appState: {
         currentItemStrokeColor: color,
@@ -188,7 +200,7 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
         currentItemStrokeStyle: style,
       },
     });
-  }, [api, tool, color, width, smooth, style]);
+  }, [api, tool, color, width, smooth, style, lockTool]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -196,24 +208,81 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
     }
   }, [penOnly]);
 
-  // S펜 전용 모드: Excalidraw 캔버스로 가는 pen 외 포인터(손가락 등)를 캡처 단계에서
-  // 막아 그려지지 않게 한다. 두 손가락 확대·이동은 pointer가 아닌 touch 이벤트라
-  // 막지 않아 그대로 동작한다. 독·버튼은 .excalidraw 바깥이라 손가락 조작이 가능하다.
+  // S펜 전용 모드:
+  // (1) Excalidraw 캔버스로 가는 pen 외 포인터(손가락 그리기·손바닥)를 캡처 단계에서 막는다.
+  //     핀치 줌도 pointer 기반이라 함께 막히므로,
+  // (2) 두 손가락 제스처는 touch 이벤트로 직접 받아 화면을 줌/팬한다.
+  //     시작 시점의 손가락 중심을 scene 좌표로 고정해(중심이 안 튀게) 거리비로 줌, 중심 이동으로 팬.
+  // 독·버튼은 .excalidraw 바깥이라 손가락 조작이 그대로 된다.
   // (api 의존성은 .excalidraw가 마운트된 뒤 리스너가 붙도록 보장하기 위함)
   useEffect(() => {
     if (!penOnly) return;
     const el = shellRef.current?.querySelector<HTMLElement>(".excalidraw");
     if (!el) return;
+
     const block = (e: PointerEvent) => {
       if (e.pointerType !== "pen") e.stopPropagation();
     };
     el.addEventListener("pointerdown", block, true);
     el.addEventListener("pointermove", block, true);
     el.addEventListener("pointerup", block, true);
+
+    let pinch:
+      | { d0: number; zoom0: number; sx: number; sy: number; offLeft: number; offTop: number }
+      | null = null;
+    const dist = (t: Touch, u: Touch) =>
+      Math.hypot(u.clientX - t.clientX, u.clientY - t.clientY);
+    const onTouchStart = (e: TouchEvent) => {
+      if (!api || e.touches.length !== 2) return;
+      e.stopPropagation();
+      const s = api.getAppState();
+      const [t, u] = [e.touches[0], e.touches[1]];
+      const cx = (t.clientX + u.clientX) / 2;
+      const cy = (t.clientY + u.clientY) / 2;
+      pinch = {
+        d0: dist(t, u),
+        zoom0: s.zoom.value,
+        offLeft: s.offsetLeft,
+        offTop: s.offsetTop,
+        sx: (cx - s.offsetLeft) / s.zoom.value - s.scrollX,
+        sy: (cy - s.offsetTop) / s.zoom.value - s.scrollY,
+      };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!api || !pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const [t, u] = [e.touches[0], e.touches[1]];
+      const cx = (t.clientX + u.clientX) / 2;
+      const cy = (t.clientY + u.clientY) / 2;
+      const zoom = Math.min(
+        Math.max(pinch.zoom0 * (dist(t, u) / pinch.d0), 0.1),
+        30,
+      );
+      api.updateScene({
+        appState: {
+          zoom: { value: zoom },
+          scrollX: (cx - pinch.offLeft) / zoom - pinch.sx,
+          scrollY: (cy - pinch.offTop) / zoom - pinch.sy,
+        },
+      });
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null;
+    };
+    el.addEventListener("touchstart", onTouchStart, { capture: true, passive: false });
+    el.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    el.addEventListener("touchend", onTouchEnd, true);
+    el.addEventListener("touchcancel", onTouchEnd, true);
+
     return () => {
       el.removeEventListener("pointerdown", block, true);
       el.removeEventListener("pointermove", block, true);
       el.removeEventListener("pointerup", block, true);
+      el.removeEventListener("touchstart", onTouchStart, true);
+      el.removeEventListener("touchmove", onTouchMove, true);
+      el.removeEventListener("touchend", onTouchEnd, true);
+      el.removeEventListener("touchcancel", onTouchEnd, true);
     };
   }, [penOnly, api]);
 
@@ -284,8 +353,11 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
           <DockButton active={tool === "eraser"} onClick={() => chooseTool("eraser")} title="지우개">
             <IconEraser className="h-[18px] w-[18px]" />
           </DockButton>
-          <DockButton active={tool === "select"} onClick={() => chooseTool("select")} title="선택·이동">
+          <DockButton active={tool === "select"} onClick={() => chooseTool("select")} title="선택">
             <IconCursor className="h-[18px] w-[18px]" />
+          </DockButton>
+          <DockButton active={tool === "hand"} onClick={() => chooseTool("hand")} title="이동(화면 끌기)">
+            <IconMove className="h-[18px] w-[18px]" />
           </DockButton>
 
           <span className="my-0.5 h-px w-6 bg-border" />
@@ -301,6 +373,9 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
 
           <DockButton active={settingsOpen} onClick={() => setSettingsOpen((o) => !o)} title="펜 설정">
             <IconSettings className="h-[18px] w-[18px]" />
+          </DockButton>
+          <DockButton active={lockTool} onClick={() => setLockTool((v) => !v)} title="도구 잠금(연속 사용)">
+            <IconLock className="h-[18px] w-[18px]" />
           </DockButton>
           <DockButton onClick={undo} title="되돌리기">
             <IconUndo className="h-[18px] w-[18px]" />
@@ -406,7 +481,7 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
         initialData={initialData as never}
         excalidrawAPI={(a) => setApi(a as unknown as ExcalidrawApi)}
         onChange={handleChange as never}
-        langCode="ko"
+        langCode="ko-KR"
       />
     </div>
   );
@@ -611,6 +686,24 @@ function IconZoomOut({ className }: { className?: string }) {
       <circle cx="10.5" cy="10.5" r="6.5" />
       <path d="M20 20l-5-5" />
       <path d="M7.5 10.5h6" />
+    </svg>
+  );
+}
+
+function IconMove({ className }: { className?: string }) {
+  return (
+    <svg {...SVG} className={className}>
+      <path d="M12 4v16M4 12h16" />
+      <path d="M9 7l3-3 3 3M9 17l3 3 3-3M7 9l-3 3 3 3M17 9l3 3-3 3" />
+    </svg>
+  );
+}
+
+function IconLock({ className }: { className?: string }) {
+  return (
+    <svg {...SVG} className={className}>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
     </svg>
   );
 }
