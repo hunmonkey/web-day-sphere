@@ -36,7 +36,7 @@ function hasDrawing(m: Memo) {
 export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
   const { memos, setMemos } = useVault();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"text" | "draw">("text");
+  const [mode, setMode] = useState<"text" | "draw">("draw");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const selected = memos.find((m) => m.id === selectedId) ?? memos[0] ?? null;
@@ -50,7 +50,7 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
     const id = crypto.randomUUID();
     setMemos((prev) => [{ id, text: "" }, ...prev]);
     setSelectedId(id);
-    setMode("text");
+    setMode("draw");
   }
 
   function updateMemo(id: string, text: string) {

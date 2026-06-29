@@ -85,6 +85,12 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
   const [style, setStyle] = useState<StrokeStyle>("solid");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shapesOpen, setShapesOpen] = useState(false);
+  // S펜 전용: 손가락 터치는 무시하고 스타일러스(pen)만 그리게. 메모를 바꿔도 유지되게 저장.
+  const [penOnly, setPenOnly] = useState<boolean>(
+    () =>
+      typeof window !== "undefined" &&
+      localStorage.getItem("ds.draw.penOnly") === "1",
+  );
 
   const shellRef = useRef<HTMLDivElement | null>(null);
 
@@ -184,24 +190,60 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
     });
   }, [api, tool, color, width, smooth, style]);
 
-  // 되돌리기/다시실행: 네이티브 UI를 숨겼으므로 Excalidraw 컨테이너에
-  // Ctrl+Z / Ctrl+Shift+Z 키 이벤트를 보내 내장 히스토리를 그대로 활용한다.
-  const undoRedo = useCallback((redo: boolean) => {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ds.draw.penOnly", penOnly ? "1" : "0");
+    }
+  }, [penOnly]);
+
+  // S펜 전용 모드: Excalidraw 캔버스로 가는 pen 외 포인터(손가락 등)를 캡처 단계에서
+  // 막아 그려지지 않게 한다. 두 손가락 확대·이동은 pointer가 아닌 touch 이벤트라
+  // 막지 않아 그대로 동작한다. 독·버튼은 .excalidraw 바깥이라 손가락 조작이 가능하다.
+  // (api 의존성은 .excalidraw가 마운트된 뒤 리스너가 붙도록 보장하기 위함)
+  useEffect(() => {
+    if (!penOnly) return;
+    const el = shellRef.current?.querySelector<HTMLElement>(".excalidraw");
+    if (!el) return;
+    const block = (e: PointerEvent) => {
+      if (e.pointerType !== "pen") e.stopPropagation();
+    };
+    el.addEventListener("pointerdown", block, true);
+    el.addEventListener("pointermove", block, true);
+    el.addEventListener("pointerup", block, true);
+    return () => {
+      el.removeEventListener("pointerdown", block, true);
+      el.removeEventListener("pointermove", block, true);
+      el.removeEventListener("pointerup", block, true);
+    };
+  }, [penOnly, api]);
+
+  // 네이티브 UI를 숨겼으므로 되돌리기·다시실행·확대·축소를 Excalidraw 컨테이너에
+  // 단축키 keydown을 보내 내장 액션으로 처리한다(확대/축소는 화면 중앙 기준).
+  const sendKey = useCallback((init: KeyboardEventInit) => {
     const root =
       shellRef.current?.querySelector<HTMLElement>(".excalidraw") ?? null;
     const target: EventTarget = root ?? document;
     target.dispatchEvent(
       new KeyboardEvent("keydown", {
-        key: "z",
-        code: "KeyZ",
         ctrlKey: true,
         metaKey: true,
-        shiftKey: redo,
         bubbles: true,
         cancelable: true,
+        ...init,
       }),
     );
   }, []);
+
+  const undo = useCallback(() => sendKey({ key: "z", code: "KeyZ" }), [sendKey]);
+  const redo = useCallback(
+    () => sendKey({ key: "z", code: "KeyZ", shiftKey: true }),
+    [sendKey],
+  );
+  const zoomIn = useCallback(() => sendKey({ key: "=", code: "Equal" }), [sendKey]);
+  const zoomOut = useCallback(
+    () => sendKey({ key: "-", code: "Minus" }),
+    [sendKey],
+  );
 
   const chooseTool = useCallback((t: DrawTool) => {
     setTool(t);
@@ -248,13 +290,22 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
 
           <span className="my-0.5 h-px w-6 bg-border" />
 
+          <DockButton onClick={zoomIn} title="확대">
+            <IconZoomIn className="h-[18px] w-[18px]" />
+          </DockButton>
+          <DockButton onClick={zoomOut} title="축소">
+            <IconZoomOut className="h-[18px] w-[18px]" />
+          </DockButton>
+
+          <span className="my-0.5 h-px w-6 bg-border" />
+
           <DockButton active={settingsOpen} onClick={() => setSettingsOpen((o) => !o)} title="펜 설정">
             <IconSettings className="h-[18px] w-[18px]" />
           </DockButton>
-          <DockButton onClick={() => undoRedo(false)} title="되돌리기">
+          <DockButton onClick={undo} title="되돌리기">
             <IconUndo className="h-[18px] w-[18px]" />
           </DockButton>
-          <DockButton onClick={() => undoRedo(true)} title="다시 실행">
+          <DockButton onClick={redo} title="다시 실행">
             <IconRedo className="h-[18px] w-[18px]" />
           </DockButton>
         </div>
@@ -341,24 +392,12 @@ export function DrawCanvas({ initialScene, legacyInk, onChange }: Props) {
               ))}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setSmooth((v) => !v)}
-              className="mt-3 flex w-full items-center justify-between"
-            >
-              <span className="text-xs font-medium text-muted">부드럽게</span>
-              <span
-                className={`relative h-5 w-9 rounded-full transition-colors ${
-                  smooth ? "bg-accent" : "bg-surface-strong"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-                    smooth ? "left-[1.125rem]" : "left-0.5"
-                  }`}
-                />
-              </span>
-            </button>
+            <ToggleRow label="부드럽게" on={smooth} onClick={() => setSmooth((v) => !v)} />
+            <ToggleRow label="S펜만 인식" on={penOnly} onClick={() => setPenOnly((v) => !v)} />
+            <p className="mt-1 text-[11px] leading-tight text-muted">
+              켜면 손가락 터치로는 안 그려지고 S펜만 인식해요. 두 손가락 확대·이동은
+              그대로예요.
+            </p>
           </div>
         )}
       </div>
@@ -400,6 +439,38 @@ function DockButton({
       }`}
     >
       {children}
+    </button>
+  );
+}
+
+function ToggleRow({
+  label,
+  on,
+  onClick,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className="mt-3 flex w-full items-center justify-between"
+    >
+      <span className="text-xs font-medium text-muted">{label}</span>
+      <span
+        className={`relative h-5 w-9 rounded-full transition-colors ${
+          on ? "bg-accent" : "bg-surface-strong"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+            on ? "left-[1.125rem]" : "left-0.5"
+          }`}
+        />
+      </span>
     </button>
   );
 }
@@ -520,6 +591,26 @@ function IconArrow({ className }: { className?: string }) {
     <svg {...SVG} className={className}>
       <path d="M5 19L19 5" />
       <path d="M10 5h9v9" />
+    </svg>
+  );
+}
+
+function IconZoomIn({ className }: { className?: string }) {
+  return (
+    <svg {...SVG} className={className}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M20 20l-5-5" />
+      <path d="M10.5 7.5v6M7.5 10.5h6" />
+    </svg>
+  );
+}
+
+function IconZoomOut({ className }: { className?: string }) {
+  return (
+    <svg {...SVG} className={className}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M20 20l-5-5" />
+      <path d="M7.5 10.5h6" />
     </svg>
   );
 }
