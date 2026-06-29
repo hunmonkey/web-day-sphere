@@ -1,0 +1,90 @@
+============================================================
+메모 필기 엔진 교체: Excalidraw → 자체 perfect-freehand 잉크 엔진
+(작성일: 2026-06-29)
+============================================================
+
+■ Context (왜 하는가)
+현재 메모 그림은 Excalidraw(다이어그램·스케치 도구)로 그린다. 이 앱은
+굿노트/삼성노트식 '필기 노트'를 지향(녹음 동기화 기능도 그 맥락)하는데,
+Excalidraw는 손글씨 최적화가 아니고(필압/속도 반영 제한적), 종이 배경·노트
+도구가 없으며 번들이 무겁다. 목표는 perfect-freehand(MIT, 9KB — Excalidraw·
+tldraw도 내부적으로 쓰는 잉크 엔진) 기반의 '자체 필기 캔버스'로 교체해,
+굿노트급 매끈한 잉크 + 줄/모눈 종이 + 라쏘 선택을 우리가 직접 튜닝하는 것.
+
+[결정사항(사용자 확정)]
+- 기존 Excalidraw 그림 데이터는 버리고 '새로 시작'한다(개발 단계).
+  Excalidraw 의존성·자산을 완전히 제거해 경량화한다.
+- v1 범위 = 코어(펜·형광펜·지우개·색/굵기·undo/redo·줌/팬·팜리젝션)
+  + 종이배경(줄/모눈) + 라쏘 선택/이동/삭제.
+- 펜 프리셋(만년필/연필)도 포함.
+
+
+■ 데이터 모델 (src/lib/vault-types.ts)
+- InkStroke 확장: opacity?: number, tool?: "pen"|"pencil"|"fountain"|"highlighter"
+  추가. 기존 points(필압 pressure + 시각 t) 유지 — t는 추후 녹음 동기화(B안) 대비.
+- Memo 변경: scene / ExcalidrawScene 타입 '제거', ink?: InkStroke[]를 1차 그림
+  모델로, paper?: "plain"|"lines"|"grid" 추가. svg(표시/내보내기용)·audio는 유지.
+- 좌표계: scene 절대좌표(줌/팬은 화면 변환으로만 처리, 저장값은 변환 무관).
+
+
+■ 새 컴포넌트/유틸
+- 추가 src/lib/ink-engine.ts (순수 함수, DOM 무관): perfect-freehand getStroke()
+  래핑 → outline polygon → SVG path d 문자열; 도구별 옵션 프리셋(size/thinning/
+  smoothing/streamline/opacity); stroke 히트테스트(점-선분 거리), 포인트 배열 bbox
+  계산, 라쏘 폴리곤 포함 판정.
+- 추가 src/components/memo/ink-canvas.tsx (DrawCanvas 대체): Canvas 2D 렌더
+  (committed 레이어 + live 스트로크), devicePixelRatio 스케일, 줌/팬 변환,
+  종이배경 그리기, 포인터 입력(getCoalescedEvents로 고해상도, pressure), 도구 상태,
+  undo/redo 스택, 라쏘 선택/이동/삭제, 디바운스(700ms) onChange → (ink, svg, paper) 전달.
+  · 기존 draw-canvas.tsx의 슬림 독 UI·아이콘·전체화면·팜리젝션(penOnly)·두 손가락
+    핀치 줌/팬 로직을 그대로 이식(검증된 코드 재활용). 도구 목록만 새 엔진에 맞게 교체
+    (펜/연필/만년필/형광/지우개/라쏘/이동 + 색·굵기·종이배경 + undo/redo/줌).
+
+
+■ 표시·내보내기 SVG (src/lib/ink-svg.ts)
+- 현재 단순 <line> 세그먼트 렌더를 perfect-freehand outline <path> fill로 교체
+  (화면과 동일한 매끈한 잉크). viewBox는 고정 1000×600 → stroke bbox 기준 자동 맞춤
+  (+패딩). 형광펜 opacity/도구별 스타일 반영. ink-engine.ts의 path 생성을 공유해
+  화면/SVG 일치.
+
+
+■ 서버 저장 (src/lib/server/vault-store.ts)
+- .excalidraw 사이드카 경로·data.excalidraw frontmatter 제거. 메모 그림은
+  _assets/<id>.ink.json(레거시 경로 재활용)으로 저장, 표시용 .svg는 클라이언트가
+  만든 값 그대로 기록(현행 유지).
+- frontmatter: ink(경로) + paper(있을 때). generateMemo/parseMemoFile/writeVault
+  cleanup에서 .excalidraw 분기 삭제, ink 분기로 단순화. 오디오 사이드카 처리는 그대로.
+
+
+■ 내보내기 (src/lib/export-pdf.ts, export-image.ts)
+- 둘 다 저장된 memo.svg 문자열 기반이라 동작 유지. export-pdf의 "(구) 손글씨 렌더"
+  분기는 새 strokesToSvg(ink-svg)로 통일.
+
+
+■ 제거 (Excalidraw 정리)
+- src/lib/excalidraw-scene.ts, scripts/copy-excalidraw-assets.mjs 삭제.
+- package.json: @excalidraw/excalidraw 의존성 제거, predev/prebuild의 copy 스크립트
+  제거, perfect-freehand 추가.
+- src/app/globals.css: Excalidraw 크롬 숨김 CSS(약 303줄~) 제거, 새 캔버스용 최소 스타일만.
+- public/excalidraw-assets(자산 폴더), .gitignore의 관련 항목 정리.
+
+
+■ 검증
+1. npm install (perfect-freehand 추가) → npx tsc --noEmit 통과 → eslint 통과.
+2. npm run dev 후 메모 그림 모드에서:
+   ① 펜/연필/만년필/형광 필기(필압·속도 굵기 변화 확인)
+   ② 색·굵기 변경  ③ 획 지우개  ④ 라쏘로 선택→이동→삭제  ⑤ undo/redo
+   ⑥ 두 손가락 줌/팬 + S펜만 인식  ⑦ 줄/모눈 종이 전환.
+3. 새로고침 → ink/paper/svg 복원 확인(자동 저장 라운드트립). Obsidian Vault의
+   _assets/<id>.svg가 매끈한 잉크로 보이는지, .ink.json 생성 확인.
+4. SVG/JPG/PDF 내보내기 정상 동작 확인.
+5. 음성 녹음(직전 작업) 기능이 그대로 동작하는지 회귀 확인.
+
+
+■ 단계 (검증 기준)
+1. 의존성/타입 정리(perfect-freehand 설치, vault-types 확장, Excalidraw 타입 제거)
+   → 검증: tsc 통과
+2. ink-engine + ink-svg(공유 path) → 검증: stroke→path/bbox 동작, tsc
+3. ink-canvas 컴포넌트(렌더·입력·도구·줌·종이·undo·라쏘) → 검증: dev에서 그리기/도구 동작
+4. memo-tab 연결(updateScene→updateInk, paper 상태) → 검증: 자동 저장 라운드트립
+5. vault-store ink 저장/정리 + Excalidraw 자산 제거 → 검증: 파일 생성/복원, 내보내기, 녹음 회귀

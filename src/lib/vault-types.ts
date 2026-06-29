@@ -39,6 +39,19 @@ export type ExcalidrawScene = {
   files?: Record<string, unknown>;
 };
 
+/**
+ * 메모에 첨부된 음성 녹음 한 개.
+ * 실제 오디오 파일은 _assets/<memoId>.audio-<id>.webm 에 저장되며,
+ * 경로는 서버가 일관되게 만든다(여기엔 메타데이터만).
+ */
+export type AudioClip = {
+  id: string;
+  /** 녹음 시작 시각(ISO). */
+  created: string;
+  /** 녹음 길이(ms). */
+  duration: number;
+};
+
 export type Memo = {
   id: string;
   text: string;
@@ -48,6 +61,8 @@ export type Memo = {
   svg?: string;
   /** (구) 손글씨 자유선 — 레거시 데이터 마이그레이션 소스로만 사용. */
   ink?: InkStroke[];
+  /** 첨부된 음성 녹음(있을 때만). */
+  audio?: AudioClip[];
   created?: string; // ISO
 };
 

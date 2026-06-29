@@ -9,6 +9,7 @@ import { getVaultRoot as getConfiguredVaultRoot } from "@/lib/server/vault-setti
 import {
   emptyVault,
   type Alarm,
+  type AudioClip,
   type ExcalidrawScene,
   type InkStroke,
   type Memo,
@@ -61,6 +62,11 @@ function safeId(value: string | undefined, fallback: string) {
   return cleaned || fallback;
 }
 
+/** 음성 클립의 사이드카 상대 경로(서버·클라 공통 규칙). 항상 같은 함수로 만들어 어긋나지 않게. */
+function audioRel(memoId: string, clipId: string) {
+  return `${ASSETS_DIR}/${safeId(memoId, "memo")}.audio-${safeId(clipId, "clip")}.webm`;
+}
+
 /** 알람 표기용: 초가 00이면 HH:MM, 아니면 HH:MM:SS */
 function fmtAt(at: string) {
   const [h, m, s] = at.split(":");
@@ -91,6 +97,60 @@ async function readTextOrNull(
   }
 }
 
+async function exists(root: string, relativePath: string): Promise<boolean> {
+  try {
+    await stat(abs(root, relativePath));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** _assets 폴더의 파일 이름 목록(없으면 빈 배열). 오디오 고아 정리에 사용. */
+async function listAssets(root: string): Promise<string[]> {
+  try {
+    const entries = await readdir(abs(root, ASSETS_DIR), { withFileTypes: true });
+    return entries.filter((e) => e.isFile()).map((e) => e.name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+// ─────────────────────────────── 음성 사이드카(바이너리) ───────────────────────────────
+
+/** 녹음 파일 저장(원자적). 메타데이터는 메모 md(frontmatter)가 따로 보관한다. */
+export async function saveAudio(memoId: string, clipId: string, buf: Buffer) {
+  const root = await getVaultRoot();
+  const full = abs(root, audioRel(memoId, clipId));
+  await mkdir(path.dirname(full), { recursive: true });
+  const tmp = `${full}.tmp`;
+  await writeFile(tmp, buf);
+  await rename(tmp, full);
+}
+
+export async function readAudio(
+  memoId: string,
+  clipId: string,
+): Promise<Buffer | null> {
+  const root = await getVaultRoot();
+  try {
+    return await readFile(abs(root, audioRel(memoId, clipId)));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export async function deleteAudio(memoId: string, clipId: string) {
+  const root = await getVaultRoot();
+  try {
+    await unlink(abs(root, audioRel(memoId, clipId)));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
 // ─────────────────────────────── 생성(state → md) ───────────────────────────────
 
 function taskLine(t: Task) {
@@ -117,12 +177,24 @@ function hasScene(memo: Memo) {
 function generateMemo(memo: Memo) {
   const scene = hasScene(memo);
   const ink = !scene && Array.isArray(memo.ink) && memo.ink.length > 0; // 레거시 손글씨
+  const audio = Array.isArray(memo.audio)
+    ? memo.audio.filter((c) => c && typeof c.id === "string")
+    : [];
   const data: Record<string, unknown> = { id: memo.id, source: "Day Sphere" };
   if (memo.created) data.created = memo.created;
   if (scene) data.excalidraw = `${ASSETS_DIR}/${memo.id}.excalidraw`;
   else if (ink) data.ink = `${ASSETS_DIR}/${memo.id}.ink.json`;
+  if (audio.length > 0) {
+    data.audio = audio.map((c) => ({
+      id: c.id,
+      created: c.created,
+      duration: c.duration,
+    }));
+  }
   let content = `\n${memoText(memo)}\n`;
   if (scene || ink) content += `\n![[${ASSETS_DIR}/${memo.id}.svg]]\n`;
+  // Obsidian에서도 첨부 음성을 바로 들을 수 있게 임베드(webm 오디오 지원).
+  for (const c of audio) content += `\n![[${audioRel(memo.id, c.id)}]]\n`;
   return matter.stringify(content, data);
 }
 
@@ -161,13 +233,32 @@ async function parseMemoFile(root: string, fileName: string): Promise<Memo> {
   const { data, content } = matter(raw);
   const id = typeof data.id === "string" ? data.id : fileName.replace(/\.md$/i, "");
 
-  // 우리가 붙인 표시용 임베드(![[_assets/<id>.svg]])는 텍스트가 아니므로 제거
+  // 우리가 붙인 표시용 임베드(![[_assets/<id>...]])는 텍스트가 아니므로 제거
+  // (SVG 미리보기 + 음성 webm 임베드 모두 — 본문 텍스트만 남긴다)
   const text = content
-    .replace(new RegExp(`!\\[\\[${ASSETS_DIR}/${id}\\.svg\\]\\]\\s*$`), "")
+    .replace(new RegExp(`!\\[\\[${ASSETS_DIR}/${id}[^\\]]*\\]\\]\\s*`, "g"), "")
     .trim();
 
   const memo: Memo = { id, text };
   if (typeof data.created === "string") memo.created = data.created;
+
+  // 첨부 음성: frontmatter의 메타데이터를 읽되, 실제 파일이 있는 클립만 살린다(끊긴 재생 방지).
+  if (Array.isArray(data.audio)) {
+    const clips: AudioClip[] = [];
+    for (const a of data.audio) {
+      if (!a || typeof a !== "object") continue;
+      const r = a as Record<string, unknown>;
+      const clipId = typeof r.id === "string" ? r.id : "";
+      if (!clipId) continue;
+      if (!(await exists(root, audioRel(id, clipId)))) continue;
+      clips.push({
+        id: clipId,
+        created: typeof r.created === "string" ? r.created : "",
+        duration: typeof r.duration === "number" ? r.duration : 0,
+      });
+    }
+    if (clips.length > 0) memo.audio = clips;
+  }
 
   // 그림(Excalidraw) 우선, 없으면 (구) 손글씨를 레거시로 읽는다.
   if (typeof data.excalidraw === "string") {
@@ -316,6 +407,9 @@ export async function writeVault(
   }
 
   // 2) 메모 → Memos/<id>.md + 그림 사이드카(.excalidraw 원본 + .svg 표시용)
+  // 오디오는 별도 엔드포인트가 디스크에 먼저 쓰므로, 여기선 메타데이터에 없는 고아 파일만 정리한다.
+  // 갓 업로드된 파일은 mtime이 base보다 커서 deleteIfSafe가 건드리지 않는다(경쟁 상태 보호).
+  const assetFiles = await listAssets(ctx.root);
   const memoIds = new Set(data.memos.map((m) => m.id));
   for (const memo of data.memos) {
     await writeIfSafe(`${MEMOS_DIR}/${memo.id}.md`, generateMemo(memo), ctx);
@@ -341,6 +435,17 @@ export async function writeVault(
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.ink.json`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${memo.id}.svg`, ctx);
     }
+
+    // 이 메모에 더 이상 속하지 않는 오디오 사이드카 정리
+    const keepAudio = new Set(
+      (memo.audio ?? []).map((c) => audioRel(memo.id, c.id)),
+    );
+    const audioPrefix = `${safeId(memo.id, "memo")}.audio-`;
+    for (const name of assetFiles) {
+      if (!name.startsWith(audioPrefix) || !name.endsWith(".webm")) continue;
+      const relP = `${ASSETS_DIR}/${name}`;
+      if (!keepAudio.has(relP)) await deleteIfSafe(relP, ctx);
+    }
   }
   for (const name of await listMd(ctx.root, MEMOS_DIR)) {
     const id = name.replace(/\.md$/i, "");
@@ -349,6 +454,12 @@ export async function writeVault(
       await deleteIfSafe(`${ASSETS_DIR}/${id}.excalidraw`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${id}.ink.json`, ctx);
       await deleteIfSafe(`${ASSETS_DIR}/${id}.svg`, ctx);
+      const audioPrefix = `${safeId(id, "memo")}.audio-`;
+      for (const asset of assetFiles) {
+        if (asset.startsWith(audioPrefix) && asset.endsWith(".webm")) {
+          await deleteIfSafe(`${ASSETS_DIR}/${asset}`, ctx);
+        }
+      }
     }
   }
 
