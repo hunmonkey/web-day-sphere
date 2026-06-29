@@ -121,7 +121,7 @@ export function AppShell({
   }
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden px-5 py-4 sm:px-8 sm:py-5">
+    <div className="day-shell relative flex h-full flex-col overflow-hidden px-5 py-4 sm:px-8 sm:py-5">
       {/* 전역 알람 배너 (어느 탭이든 표시) */}
       {ringing && (
         <div
@@ -142,12 +142,12 @@ export function AppShell({
       )}
 
       {/* 헤더 + 탭바 (한 줄 통합: 날짜·시각 | 탭 | 사용자 | 로그아웃) */}
-      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="day-shell-header mb-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
         <Greeting />
         <nav
           role="tablist"
           aria-label="화면 전환"
-          className="order-last flex w-full min-w-0 flex-1 gap-1 rounded-2xl glass p-1 sm:order-none sm:w-auto"
+          className="day-main-tabs order-last flex w-full min-w-0 flex-1 gap-1 rounded-2xl glass p-1 sm:order-none sm:w-auto"
         >
           {TABS.map((t) => (
             <button
@@ -165,7 +165,7 @@ export function AppShell({
             </button>
           ))}
         </nav>
-        <div className="ml-auto flex shrink-0 items-center gap-2 text-sm">
+        <div className="day-header-actions ml-auto flex shrink-0 items-center gap-2 text-sm">
           <button
             type="button"
             onClick={() => {

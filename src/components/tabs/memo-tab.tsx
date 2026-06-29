@@ -76,7 +76,7 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
     deviceKind === "mobile"
       ? "grid h-full grid-cols-1 gap-4"
       : deviceKind === "tablet"
-        ? "grid h-full grid-cols-[1.3fr_8.7fr] gap-4"
+        ? "grid h-full grid-cols-[minmax(13rem,1.7fr)_minmax(0,8.3fr)] gap-4"
         : deviceKind === "desktop"
           ? "grid h-full grid-cols-[1.75fr_8.25fr] gap-4"
           : "grid h-full grid-cols-1 gap-4 sm:grid-cols-[1.75fr_8.25fr]";
@@ -86,13 +86,13 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
   return (
     <div className={gridClass}>
       {/* 메모 목록 */}
-      <section className={`${panel} flex flex-col`}>
-        <div className="flex shrink-0 items-center justify-between">
-          <h2 className="text-base font-semibold text-fg">메모</h2>
+      <section className={`${panel} flex min-w-0 flex-col`}>
+        <div className="flex shrink-0 items-center justify-between gap-2">
+          <h2 className="whitespace-nowrap text-base font-semibold text-fg">메모</h2>
           <button
             type="button"
             onClick={addMemo}
-            className="rounded-lg bg-accent px-3 py-1 text-sm font-medium text-accent-fg transition-colors hover:bg-accent-strong"
+            className="whitespace-nowrap rounded-lg bg-accent px-3 py-1 text-sm font-medium text-accent-fg transition-colors hover:bg-accent-strong"
           >
             새 메모
           </button>
@@ -136,7 +136,7 @@ export function MemoTab({ deviceKind }: { deviceKind: DeviceKind | null }) {
       </section>
 
       {/* 편집기 */}
-      <section className={`${panel} flex flex-col`}>
+      <section className={`${panel} flex min-w-0 flex-col`}>
         {selected ? (
           <>
             <div className="mb-3 flex shrink-0 items-center justify-between">

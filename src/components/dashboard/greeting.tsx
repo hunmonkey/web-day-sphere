@@ -24,7 +24,7 @@ export function Greeting() {
     : "";
 
   return (
-    <h1 className="shrink-0 whitespace-nowrap text-xl font-semibold tracking-tight tabular-nums text-fg sm:text-2xl">
+    <h1 className="day-greeting shrink-0 whitespace-nowrap text-xl font-semibold tabular-nums text-fg sm:text-2xl">
       {text || " "}
     </h1>
   );

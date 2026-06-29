@@ -128,9 +128,9 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
     : "--시 --분 --초";
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
+    <div className="alarm-layout grid h-full min-h-0 grid-cols-1 gap-4 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
       {/* 좌: 다이얼 알람 박스 5개 */}
-      <section className="glass flex min-h-0 flex-col gap-2 rounded-3xl p-4 lg:h-full">
+      <section className="alarm-slots-panel glass flex min-h-0 flex-col gap-2 rounded-3xl p-4 lg:h-full">
         {slots.map((s, i) => (
           <AlarmSlot
             key={i}
@@ -144,7 +144,7 @@ export function AlarmTab({ alarms, setAlarms }: Props) {
       </section>
 
       {/* 우: 기존 알람 카드 (다음 알람 / 입력 / 빠른 추가 / 목록) */}
-      <section className="glass flex min-h-0 flex-col rounded-3xl p-6 lg:h-full">
+      <section className="alarm-detail-panel glass flex min-h-0 flex-col rounded-3xl p-6 lg:h-full">
         <div className="flex shrink-0 items-center justify-between">
           <h2 className="text-base font-semibold text-fg">알람</h2>
           <span

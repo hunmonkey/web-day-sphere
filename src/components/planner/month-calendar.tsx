@@ -28,7 +28,7 @@ export function MonthCalendar({
   const cells = monthGrid(year, month);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="month-calendar flex h-full flex-col">
       {/* 월 이동 */}
       <div className="flex shrink-0 items-center justify-between">
         <h2 className="text-lg font-semibold text-fg">
@@ -69,7 +69,7 @@ export function MonthCalendar({
       </div>
 
       {/* 날짜 그리드 (남은 높이를 꽉 채움) */}
-      <div className="mt-1 grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1">
+      <div className="month-calendar-days mt-1 grid min-h-0 flex-1 grid-cols-7 grid-rows-6 gap-1">
         {cells.map((date, idx) =>
           date === null ? (
             <div key={`empty-${idx}`} />

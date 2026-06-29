@@ -22,7 +22,7 @@ export function AlarmSlot({
   onReset: () => void;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 items-center gap-3 rounded-2xl border border-border bg-surface-strong px-3 py-2">
+    <div className="alarm-slot flex min-h-0 flex-1 items-center gap-3 rounded-2xl border border-border bg-surface-strong px-3 py-2">
       <AnalogClock time={value} active={registered} />
       <TimeSpinner value={value} onChange={onChange} disabled={registered} />
       <div className="ml-auto flex shrink-0 flex-col items-stretch gap-1.5">
