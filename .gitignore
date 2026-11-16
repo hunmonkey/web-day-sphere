@@ -43,3 +43,8 @@ next-env.d.ts
 # project secrets (민감정보 - 절대 커밋 금지)
 Rule_PW.txt
 .day-sphere/
+
+# 공개 저장소 제외: AI 지침·작업 메모 (로컬 전용)
+CLAUDE.md
+AGENTS.md
+Rule_*.txt
